@@ -98,10 +98,11 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             ref var entryNode = ref _entriesByHits[entryIndex];
             ref var hitsCountNode = ref _hitsCount[entryNode.value.hitsCountIndex];
 
-            double instantFreq = 1d / (DateTime.UtcNow - entryNode.value.lastUsed).TotalSeconds;
+            long tt = Stopwatch.GetTimestamp();
+            double instantFreq = 1d * Stopwatch.Frequency / (tt - entryNode.value.lastUsed);
             int roundedFreq = (int)Math.Round(Math.Log10(instantFreq * 1d));
 
-            entryNode.value.lastUsed = DateTime.UtcNow;
+            entryNode.value.lastUsed = tt;
 
             value = entryNode.value.value;
 
@@ -364,7 +365,7 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         public TKey key;
         public TValue value;
         public DateTime insertion;
-        public DateTime lastUsed;
+        public long lastUsed;
         public int hitsCountIndex;
 
         public Entry(TKey key, TValue value)
@@ -372,7 +373,7 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             this.key = key;
             this.value = value;
             insertion = DateTime.UtcNow;
-            lastUsed = DateTime.UtcNow;
+            lastUsed = Stopwatch.GetTimestamp();
             hitsCountIndex = -1;
         }
     }

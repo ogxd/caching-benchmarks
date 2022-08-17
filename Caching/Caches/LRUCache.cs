@@ -13,10 +13,12 @@ public class LRUCache<TKey, TValue> : LRUCache<TKey, TKey, TValue>
 {
     public LRUCache(
         int maximumKeyCount,
+        double oversize,
         IEqualityComparer<TKey> keyComparer = null,
         ICacheObserver cacheObserver = null,
         TimeSpan? expiration = null) : base(
             maximumKeyCount,
+            oversize,
             static item => item,
             keyComparer,
             cacheObserver,
@@ -35,10 +37,13 @@ public class LRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     private readonly Func<TItem, TKey> _keyFactory;
 
+    private readonly double _oversize;
+
     private readonly int _maximumKeyCount;
 
     public LRUCache(
         int maximumKeyCount,
+        double oversize,
         Func<TItem, TKey> keyFactory,
         IEqualityComparer<TKey> keyComparer = null,
         ICacheObserver cacheObserver = null,
@@ -49,6 +54,7 @@ public class LRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         _entriesByHits = new IndexBasedLinkedList<Entry>();
         _cacheObserver = cacheObserver;
         _maximumKeyCount = maximumKeyCount;
+        _oversize = oversize;
     }
 
     public TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
@@ -58,7 +64,7 @@ public class LRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
         _cacheObserver?.CountCacheCall();
 
-        if (_perKeyMap.Count > 1.2d * _maximumKeyCount)
+        if (_perKeyMap.Count > _oversize * _maximumKeyCount)
         {
             while (_perKeyMap.Count > _maximumKeyCount)
             {

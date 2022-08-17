@@ -56,7 +56,13 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
         {
             var x = _entriesByRecency[_entriesByRecency.FirstIndex].value;
             // Refreshes order of least recently used item
-            GetValue(ref x, false);
+            
+            ref int eI = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, _entriesByHits[x].value.key, out bool t);
+            Debug.Assert(t);
+            Debug.Assert(x == eI);
+
+            GetValue(ref eI, false);
+
             //_perKeyMap[_entriesByHits[x].value.key] = x;
 
             Debug.Assert(_entriesByHits[_entriesByRecency[_entriesByRecency.FirstIndex].value].used);
@@ -71,7 +77,7 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
         if (_perKeyMap.Count > 1.2d * _maximumKeyCount)
         {
-            while (_perKeyMap.Count > _maximumKeyCount)
+            while (_perKeyMap.Count > 1.0d * _maximumKeyCount)
             {
                 RemoveFirst();
             }
@@ -125,12 +131,13 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
         ref var entryNode = ref _entriesByHits[entryIndex];
         ref var hitsCountNode = ref _hitsCount[entryNode.value.hitsCountIndex];
 
-        double instantFreq = 1d / (DateTime.UtcNow - entryNode.value.lastUsed).TotalSeconds;
+        long tt = Stopwatch.GetTimestamp();
+        double instantFreq = 1d * Stopwatch.Frequency / (tt - entryNode.value.lastUsed);
         int roundedFreq = (int)Math.Round(Math.Log10(instantFreq * 1d));
 
         if (updateUsed)
         {
-            entryNode.value.lastUsed = DateTime.UtcNow;
+            entryNode.value.lastUsed = tt;
         }
 
         value = entryNode.value.value;
@@ -453,7 +460,7 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
         public TKey key;
         public TValue value;
         public DateTime insertion;
-        public DateTime lastUsed;
+        public long lastUsed;
         public int hitsCountIndex;
         public int recency;
 
@@ -462,7 +469,7 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
             this.key = key;
             this.value = value;
             insertion = DateTime.UtcNow;
-            lastUsed = DateTime.UtcNow;
+            lastUsed = Stopwatch.GetTimestamp();
             hitsCountIndex = -1;
             recency = 0;
         }

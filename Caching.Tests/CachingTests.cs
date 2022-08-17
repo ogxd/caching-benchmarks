@@ -20,7 +20,8 @@ public class CachingTests
 
     private static IEnumerable<ICache<long, long>> Caches()
     {
-        yield return new LRUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: _cacheMonitoring);
+        yield return new LRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: _cacheMonitoring);
+        yield return new LRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.2d, cacheObserver: _cacheMonitoring);
         yield return new LUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: _cacheMonitoring);
         yield return new LFUsCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: _cacheMonitoring);
         yield return new LFUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: _cacheMonitoring);
@@ -29,7 +30,7 @@ public class CachingTests
 
     private static IEnumerable<IGenerator<long>> Generators()
     {
-        yield return new SparseLongGenerator(100000);
+        yield return new SparseLongGenerator(2 * CACHE_SIZE);
         // Specific case were out of CACHE_SIZE we can get up to a maximum of 38.29% hits (best case)
         yield return new GaussianLongGenerator(0, CACHE_SIZE);
         // Specific case were out of CACHE_SIZE we can get up to a maximum of 68.27% hits (best case)
