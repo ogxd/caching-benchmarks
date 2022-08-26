@@ -27,5 +27,11 @@
 	<ItemGroup>
 		<ProjectReference Include="..\Caching\Caching.csproj" />
 	</ItemGroup>
-  
+
+	<ItemGroup>
+	  <None Update="hashes.dat">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
+
 </Project>

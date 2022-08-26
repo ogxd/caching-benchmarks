@@ -59,6 +59,20 @@ public class IndexBasedLinkedList<T> : IEnumerable<T>, IReadOnlyCollection<T>
         return index >= 0 && index < _array.Length && _array[index].used;
     }
 
+    public int MoveToFirst(int index)
+    {
+        var value = this[index].value;
+        Remove(index);
+        return AddFirst(value);
+    }
+
+    public int MoveToLast(int index)
+    {
+        var value = this[index].value;
+        Remove(index);
+        return AddLast(value);
+    }
+
     /// <summary>
     /// O(1) add after node index operation
     /// </summary>
