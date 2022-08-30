@@ -32,7 +32,7 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     private readonly Func<TItem, TKey> _keyFactory;
 
-    private readonly int _maximumKeyCount;
+    private int _maximumKeyCount;
 
     public LFURACache(
         int maximumKeyCount,
@@ -50,6 +50,8 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
         _maximumKeyCount = maximumKeyCount;
     }
 
+    public int MaxSize { get => _maximumKeyCount; set => _maximumKeyCount = value; }
+
     public TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
     {
         if (_entriesByRecency.Count > 0)
@@ -58,15 +60,15 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
             // Refreshes order of least recently used item
             
             ref int eI = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, _entriesByHits[x].value.key, out bool t);
-            Debug.Assert(t);
-            Debug.Assert(x == eI);
+            //Debug.Assert(t);
+            //Debug.Assert(x == eI);
 
             GetValue(ref eI, false);
 
-            //_perKeyMap[_entriesByHits[x].value.key] = x;
+            //_perKeyMap[_entriesByHits[eI].value.key] = eI;
 
-            Debug.Assert(_entriesByHits[_entriesByRecency[_entriesByRecency.FirstIndex].value].used);
-            Debug.Assert(_entriesByRecency.Count == _entriesByHits.Count);
+            //Debug.Assert(_entriesByHits[_entriesByRecency[_entriesByRecency.FirstIndex].value].used);
+            //Debug.Assert(_entriesByRecency.Count == _entriesByHits.Count);
         }
 
 
@@ -139,6 +141,11 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
         if (updateUsed)
         {
             entryNode.value.lastUsed = tt;
+        }
+        else
+        {
+            roundedFreq -= 1;
+            //roundedFreq = int.MinValue;
         }
 
         value = entryNode.value.value;

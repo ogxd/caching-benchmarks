@@ -1,10 +1,5 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Caching;
@@ -28,8 +23,6 @@ public class LRUCache<TKey, TValue> : LRUCache<TKey, TKey, TValue>
 
 public class LRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 {
-    private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
-
     private readonly ICacheObserver _cacheObserver;
 
     private readonly Dictionary<TKey, int> _perKeyMap;
@@ -39,7 +32,7 @@ public class LRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     private readonly double _oversize;
 
-    private readonly int _maximumKeyCount;
+    private int _maximumKeyCount;
 
     public LRUCache(
         int maximumKeyCount,
@@ -56,6 +49,8 @@ public class LRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         _maximumKeyCount = maximumKeyCount;
         _oversize = oversize;
     }
+
+    public int MaxSize { get => _maximumKeyCount; set => _maximumKeyCount = value; }
 
     public TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
     {

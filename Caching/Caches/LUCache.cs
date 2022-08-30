@@ -32,7 +32,7 @@ public class LUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     private readonly Func<TItem, TKey> _keyFactory;
 
-    private readonly int _maximumKeyCount;
+    private int _maximumKeyCount;
 
     public LUCache(
         int maximumKeyCount,
@@ -48,6 +48,8 @@ public class LUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         _cacheObserver = cacheObserver;
         _maximumKeyCount = maximumKeyCount;
     }
+
+    public int MaxSize { get => _maximumKeyCount; set => _maximumKeyCount = value; }
 
     public TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
     {

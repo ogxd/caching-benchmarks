@@ -22,6 +22,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+    <PackageReference Include="ScottPlot" Version="4.0.45" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -29,6 +30,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <None Update="case_cl.dat">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	  <None Update="case_vc.dat">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
 	  <None Update="hashes.dat">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
