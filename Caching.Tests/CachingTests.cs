@@ -60,6 +60,7 @@ public class CachingTests
         generators.Add(("Dataset CL", new DataBasedGenerator("case_cl.dat")));
         generators.Add(("Dataset VCC", new DataBasedGenerator("case_vcc.dat")));
         generators.Add(("Dataset VDC", new DataBasedGenerator("case_vdc.dat")));
+        generators.Add(("Dataset Shared CL+VCC+VDC", new MultimodalGenerator<long>(new DataBasedGenerator("case_cl.dat"), new DataBasedGenerator("case_vcc.dat"), new DataBasedGenerator("case_vdc.dat"))));
 
         foreach (var generator in generators)
         {

@@ -3,8 +3,14 @@
 This repository contains experimental implementations of various caching policies for benchmark purpose.   
 Benchmark is done using 3 real world case datasets (CL, VCC, VDC) + data generated from theoritical distributions to test various behaviours.
 
+## Candidates
+
+Benchmarked caches are all supposed to be O(1) or near O(1).    
+Implementations are not polished, what is benchmarked here is the algorithm itself and the policy efficiency given several scenario, and not the CPU time nor memory usage or thread safety (don't copy paste implementations as is, or at your own risk)
+
 ## Results
 
+![Dataset Shared CL + VCC + VDC - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/DatasetSharedCLVCCVDC.png)
 ![Dataset CL - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/DatasetCL.png)
 ![Dataset VCC - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/DatasetVCC.png)
 ![Dataset VDC - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/DatasetVDC.png)
