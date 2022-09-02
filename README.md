@@ -1,13 +1,17 @@
 # Caching Benchmarks
 
-This repository contains experimental implementations of various caching policies for benchmark purpose
+This repository contains experimental implementations of various caching policies for benchmark purpose.   
+Benchmark is done using 3 real world case datasets (CL, VCC, VDC) + data generated from theoritical distributions to test various behaviours.
 
 ## Results
 
-|                | A   | B   | C   | D  | E  | F |
-|----------------|-----|-----|-----|----|----|---|
-| LRU            | 30% | 58% | 96% | 43 |    |   |
-| LU             | 33% | 64% | 96% | 49 | 25 | 6 |
-| LFU bruteforce | 36% | 68% | 96% | 53 |    |   |
-| LFU            | 36% | 68% | 96% | 53 |    |   |
-| LFURA          | 34% | 68% | 96% | 52 |    |   |
+![Dataset CL - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/DatasetCL.png)
+![Dataset VCC - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/DatasetVCC.png)
+![Dataset VDC - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/DatasetVDC.png)
+![Gaussian Bi-Modal - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/GaussianBiModal.png)
+![Gaussian Switch Far - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/GaussianSwitchFar.png)
+![Gaussian Switch Near - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/GaussianSwitchNear.png)
+![Gaussian σ = 5K - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/Gaussian5K.png)
+![Gaussian σ = 10K - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/Gaussian10K.png)
+![Gaussian σ = 20K - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/Gaussian20K.png)
+![Sparse 50K - efficiency](https://raw.githubusercontent.com/ogxd/caching-benchmarks/master/Results/Sparse50K.png)
