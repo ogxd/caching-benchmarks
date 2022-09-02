@@ -57,9 +57,9 @@ public class CachingTests
         generators.Add(("Gaussian Bi-Modal", new MultimodalGenerator<long>(new GaussianLongGenerator(0, 5000), new GaussianLongGenerator(10_000, 5_000))));
         generators.Add(("Gaussian Switch Near", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 5000), new GaussianLongGenerator(10_000, 5000))));
         generators.Add(("Gaussian Switch Far", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 5000), new GaussianLongGenerator(1_000_000, 5000))));
-        generators.Add(("Dataset 1", new DataBasedGenerator("hashes.dat")));
         generators.Add(("Dataset CL", new DataBasedGenerator("case_cl.dat")));
-        generators.Add(("Dataset VC", new DataBasedGenerator("case_vc.dat")));
+        generators.Add(("Dataset VCC", new DataBasedGenerator("case_vcc.dat")));
+        generators.Add(("Dataset VDC", new DataBasedGenerator("case_vdc.dat")));
 
         foreach (var generator in generators)
         {

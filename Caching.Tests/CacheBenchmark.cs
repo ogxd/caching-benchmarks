@@ -2,6 +2,7 @@
 using ScottPlot;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Drawing;
 using System.IO;
@@ -20,14 +21,14 @@ public class CacheBenchmark
         plots["efficiency"].Title(analysisName);
         plots["efficiency"].XLabel("cache size");
         plots["efficiency"].YLabel("efficiency %");
-        plots["efficiency"].Legend(location: legendLocation.upperLeft);
+        //plots["efficiency"].Legend(location: legendLocation.upperLeft);
 
         //AnalyzeBaseline(plots, generator);
 
         int i = 0;
         foreach (var test in tests)
         {
-            AnalyzeCache(i, test.testName, test.cache, factory, metricService, plots, generator);
+            AnalyzeCache(i, test.testName.Split('`')[0], test.cache, factory, metricService, plots, generator);
             i++;
         }
 
@@ -81,11 +82,13 @@ public class CacheBenchmark
 
     private static void AnalyzeCache<K, V>(int c, string testName, ICache<K, V> cache, Func<K, V> factory, ObserverTest metricService, Dictionary<string, Plot> plots, IGenerator<K> generator)
     {
-        Console.WriteLine(">>> " + testName);
-
         var measurements = new List<(int size, int calls, int misses)>();
 
-        for (int i = 1; i < 10; i++)
+        int iterations = 21;
+
+        Stopwatch sw = Stopwatch.StartNew();
+
+        for (int i = 1; i < iterations; i++)
         {
             int size = 1000 * i * i;
 
@@ -103,7 +106,7 @@ public class CacheBenchmark
 
             metricService.Reset();
 
-            for (int j = 0; j < 100_000; j++)
+            for (int j = 0; j < 500_000; j++)
             {
                 K key = generator.Generate();
                 _ = cache.GetOrCreate(key, factory);
@@ -112,9 +115,19 @@ public class CacheBenchmark
             measurements.Add((size, metricService.CacheCalls, metricService.CacheMisses));
         }
 
+        sw.Stop();
+
+        Console.WriteLine($"{testName} in {sw.Elapsed}");
+
         double[] sizes = measurements.Select(x => (double)x.size).ToArray();
         
         double[] efficiency = measurements.Select(x => (x.calls == 0) ? 0 : 100d * (x.calls - x.misses) / x.calls).ToArray();
-        plots["efficiency"].PlotScatter(sizes, efficiency, label: testName, markerShape: (MarkerShape)(c % 9 + 1));
+
+        int textPos = c % (iterations - 4 - 1) + 4;
+
+        plots["efficiency"].PlotScatter(sizes, efficiency, label: testName, color: _colors[c]);
+        plots["efficiency"].PlotText(testName, sizes[textPos], efficiency[textPos], color: _colors[c], frameColor: Color.White);
     }
+
+    private static readonly Color[] _colors = new Color[] { Color.SandyBrown, Color.RebeccaPurple, Color.Blue, Color.Orange, Color.Green, Color.HotPink, Color.Khaki, Color.PeachPuff, Color.Salmon };
 }
