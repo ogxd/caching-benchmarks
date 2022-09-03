@@ -77,14 +77,19 @@ public class LFURACache<TItem, TKey, TValue> : ICache<TItem, TValue>
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
         _cacheObserver?.CountCacheCall();
 
-        if (_perKeyMap.Count > 1.2d * _maximumKeyCount)
-        {
-            while (_perKeyMap.Count > 1.0d * _maximumKeyCount)
-            {
-                RemoveFirst();
-            }
+        //if (_perKeyMap.Count > 1.2d * _maximumKeyCount)
+        //{
+        //    while (_perKeyMap.Count > 1.0d * _maximumKeyCount)
+        //    {
+        //        RemoveFirst();
+        //    }
 
-            //CheatRemove();
+        //    //CheatRemove();
+        //}
+
+        while (_perKeyMap.Count > 1.2d * _maximumKeyCount)
+        {
+            RemoveFirst();
         }
 
         TValue value;

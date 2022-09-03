@@ -106,7 +106,7 @@ public class CacheBenchmark
 
             metricService.Reset();
 
-            for (int j = 0; j < 500_000; j++)
+            for (int j = 0; j < 800_000; j++)
             {
                 K key = generator.Generate();
                 _ = cache.GetOrCreate(key, factory);
@@ -123,11 +123,11 @@ public class CacheBenchmark
         
         double[] efficiency = measurements.Select(x => (x.calls == 0) ? 0 : 100d * (x.calls - x.misses) / x.calls).ToArray();
 
-        int textPos = c % (iterations - 4 - 1) + 4;
+        int textPos = iterations - 4 - c;
 
         plots["efficiency"].PlotScatter(sizes, efficiency, label: testName, color: _colors[c]);
-        plots["efficiency"].PlotText(testName, sizes[textPos], efficiency[textPos], color: _colors[c], frameColor: Color.White);
+        plots["efficiency"].PlotText(testName, sizes[textPos], efficiency[textPos], color: _colors[c]);
     }
 
-    private static readonly Color[] _colors = new Color[] { Color.SandyBrown, Color.RebeccaPurple, Color.Blue, Color.Orange, Color.Green, Color.HotPink, Color.Khaki, Color.PeachPuff, Color.Salmon };
+    private static readonly Color[] _colors = new Color[] { Color.Red, Color.RebeccaPurple, Color.Blue, Color.Orange, Color.Green, Color.HotPink, Color.Olive, Color.DarkTurquoise, Color.Salmon };
 }

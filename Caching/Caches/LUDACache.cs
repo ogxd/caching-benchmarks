@@ -7,9 +7,9 @@ using System.Runtime.InteropServices;
 
 namespace Caching;
 
-public class LUCache<TKey, TValue> : LUCache<TKey, TKey, TValue>
+public class LUDACache<TKey, TValue> : LUDACache<TKey, TKey, TValue>
 {
-    public LUCache(
+    public LUDACache(
         int maximumKeyCount,
         IEqualityComparer<TKey> keyComparer = null,
         ICacheObserver cacheObserver = null,
@@ -22,7 +22,7 @@ public class LUCache<TKey, TValue> : LUCache<TKey, TKey, TValue>
     { }
 }
 
-public class LUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
+public class LUDACache<TItem, TKey, TValue> : ICache<TItem, TValue>
 {
     private readonly ICacheObserver _cacheObserver;
 
@@ -34,7 +34,7 @@ public class LUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     private int _maximumKeyCount;
 
-    public LUCache(
+    public LUDACache(
         int maximumKeyCount,
         Func<TItem, TKey> keyFactory,
         IEqualityComparer<TKey> keyComparer = null,
@@ -78,24 +78,45 @@ public class LUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             value = factory(item);
 
             Entry entry = new(key, value);
-            entryIndex = _entriesByHits.AddFirst(entry);
 
-            if (_hitsCount.Count == 0
-             || _hitsCount[_hitsCount.FirstIndex].Value.hits > 1)
+            if (_hitsCount.Count == 0)
             {
+                entryIndex = _entriesByHits.AddFirst(entry);
+
                 HitsCount firstHit = new();
                 firstHit.hits = 1;
                 firstHit.refCount = 1;
                 firstHit.firstEntryWithHitsIndex = entryIndex;
                 _hitsCount.AddFirst(firstHit);
+
+                _entriesByHits[entryIndex].value.hitsCountIndex = _hitsCount.FirstIndex;
             }
             else
             {
-                _hitsCount[_hitsCount.FirstIndex].value.refCount++;
-                _hitsCount[_hitsCount.FirstIndex].value.firstEntryWithHitsIndex = entryIndex;
-            }
+                if (_hitsCount.Count == 1)
+                {
+                    entryIndex = _entriesByHits.AddFirst(entry);
 
-            _entriesByHits[_entriesByHits.FirstIndex].value.hitsCountIndex = _hitsCount.FirstIndex;
+                    ref var n = ref _hitsCount[_hitsCount.FirstIndex].value;
+                    n.refCount++;
+                    n.firstEntryWithHitsIndex = entryIndex;
+
+                    _entriesByHits[entryIndex].value.hitsCountIndex = _hitsCount.FirstIndex;
+                }
+                else
+                {
+                    // Dynamic Aging is done by not inserting after first hits block instead of before
+
+                    ref var n = ref _hitsCount[_hitsCount[_hitsCount.FirstIndex].after].value;
+
+                    entryIndex = _entriesByHits.AddBefore(entry, n.firstEntryWithHitsIndex);
+
+                    n.refCount++;
+                    n.firstEntryWithHitsIndex = entryIndex;
+
+                    _entriesByHits[entryIndex].value.hitsCountIndex = _hitsCount[_hitsCount.FirstIndex].after;
+                }
+            }
 
             _cacheObserver?.CountCacheMiss();
 

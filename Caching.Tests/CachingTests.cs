@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using Caching.Caches;
+using NUnit.Framework;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -21,11 +22,12 @@ public class CachingTests
         yield return new LRUCache<long, long>(maximumKeyCount: (int)(1.2d * CACHE_SIZE), 1.0d, cacheObserver: _cacheMonitoring);
         yield return new SLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: _cacheMonitoring);
         yield return new MSLRUCache<long, long>(maximumKeyCount: (int)(1.2d * CACHE_SIZE), 5, cacheObserver: _cacheMonitoring);
-        //yield return new LRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.2d, cacheObserver: _cacheMonitoring);
+        yield return new RealLFUCache<long, long>((int)(1.2d * CACHE_SIZE), cacheObserver: _cacheMonitoring);
         yield return new LUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: _cacheMonitoring);
+        yield return new LUDACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: _cacheMonitoring);
         yield return new LFUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: _cacheMonitoring);
         yield return new LFURACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: _cacheMonitoring);
-        yield return new LIRSCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: _cacheMonitoring);
+        //yield return new LIRSCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: _cacheMonitoring);
     }
 
     [Test]
@@ -50,13 +52,13 @@ public class CachingTests
     {
         var generators = new List<(string, IGenerator<long>)>();
 
-        generators.Add(("Sparse 50K", new SparseLongGenerator(50_000)));
-        generators.Add(("Gaussian σ = 20K", new GaussianLongGenerator(0, 20_000)));
-        generators.Add(("Gaussian σ = 10K", new GaussianLongGenerator(0, 10_000)));
-        generators.Add(("Gaussian σ = 5K", new GaussianLongGenerator(0, 5000)));
-        generators.Add(("Gaussian Bi-Modal", new MultimodalGenerator<long>(new GaussianLongGenerator(0, 5000), new GaussianLongGenerator(10_000, 5_000))));
-        generators.Add(("Gaussian Switch Near", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 5000), new GaussianLongGenerator(10_000, 5000))));
-        generators.Add(("Gaussian Switch Far", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 5000), new GaussianLongGenerator(1_000_000, 5000))));
+        generators.Add(("Sparse 500K", new SparseLongGenerator(500_000)));
+        generators.Add(("Gaussian σ = 200K", new GaussianLongGenerator(0, 200_000)));
+        generators.Add(("Gaussian σ = 100K", new GaussianLongGenerator(0, 100_000)));
+        generators.Add(("Gaussian σ = 50K", new GaussianLongGenerator(0, 50_000)));
+        generators.Add(("Gaussian Bi-Modal", new MultimodalGenerator<long>(new GaussianLongGenerator(0, 50_000), new GaussianLongGenerator(100_000, 50_000))));
+        generators.Add(("Gaussian Switch Near", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 50_000), new GaussianLongGenerator(100_000, 50_000))));
+        generators.Add(("Gaussian Switch Far", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 50_000), new GaussianLongGenerator(10_000_000, 50_000))));
         generators.Add(("Dataset CL", new DataBasedGenerator("case_cl.dat")));
         generators.Add(("Dataset VCC", new DataBasedGenerator("case_vcc.dat")));
         generators.Add(("Dataset VDC", new DataBasedGenerator("case_vdc.dat")));
