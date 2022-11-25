@@ -22,16 +22,21 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="OxyPlot.Core" Version="2.1.0" />
-    <PackageReference Include="ScottPlot" Version="4.1.59" />
-    <PackageReference Include="System.Drawing.Common" Version="7.0.0" />
+		<PackageReference Include="SkiaSharp" Version="2.88.3" />
+    	<PackageReference Include="System.Drawing.Common" Version="7.0.0" />
+		<PackageReference Include="ScottPlot" Version="4.1.59" /><!-- Not working on MacOS-->
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\Caching\Caching.csproj" />
 	</ItemGroup>
-	
-	
+
+	<ItemGroup>
+		<Reference Include="ScottPlot5">
+			<HintPath>ScottPlot5.dll</HintPath> <!--Not available yet so this is a self build early version of ScottPlot 5 which is crossplatform-->
+			<Aliases>ScottPlot5</Aliases>
+		</Reference>
+	</ItemGroup>
 
 	<ItemGroup>
 	  <None Update="case_cl.dat">

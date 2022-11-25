@@ -16,13 +16,13 @@ public class CachingTests
     {
         CacheCounter counter;
         yield return new ("LRU", new LRUCache<long, long>(maximumKeyCount: (int)(1.2d * CACHE_SIZE), 1.0d, cacheObserver: counter = new CacheCounter()), counter);
-        // yield return new ("SLRU", new SLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
-        // yield return new ("MSLRU", new MSLRUCache<long, long>(maximumKeyCount: (int)(1.2d * CACHE_SIZE), 5, cacheObserver: counter = new CacheCounter()), counter);
-        // yield return new ("Real LFY", new RealLFUCache<long, long>((int)(1.2d * CACHE_SIZE), cacheObserver: counter = new CacheCounter()), counter);
-        // yield return new ("LU", new LUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
-        // yield return new ("LUDA", new LUDACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
-        // yield return new ("LFU", new LFUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
-        // yield return new ("LFURA", new LFURACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("SLRU", new SLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("MSLRU", new MSLRUCache<long, long>(maximumKeyCount: (int)(1.2d * CACHE_SIZE), 5, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("Real LFY", new RealLFUCache<long, long>((int)(1.2d * CACHE_SIZE), cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("LU", new LUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("LUDA", new LUDACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("LFU", new LFUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("LFURA", new LFURACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         //yield return new TestCase("", new LIRSCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
     }
     
@@ -46,20 +46,20 @@ public class CachingTests
     [NonParallelizable]
     public async Task Plot_Efficiency()
     {
-        var plotter = new ScotPlottPlotter();
+        var plotter = new ScotPlott5Plotter();
         var simulations = new List<(string name, IGenerator<long> generator)>();
 
         simulations.Add(("Sparse 500K", new SparseLongGenerator(500_000)));
-        // simulations.Add(("Gaussian σ = 200K", new GaussianLongGenerator(0, 200_000)));
-        // simulations.Add(("Gaussian σ = 100K", new GaussianLongGenerator(0, 100_000)));
-        // simulations.Add(("Gaussian σ = 50K", new GaussianLongGenerator(0, 50_000)));
-        // simulations.Add(("Gaussian Bi-Modal", new MultimodalGenerator<long>(new GaussianLongGenerator(0, 50_000), new GaussianLongGenerator(100_000, 50_000))));
-        // simulations.Add(("Gaussian Switch Near", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 50_000), new GaussianLongGenerator(100_000, 50_000))));
-        // simulations.Add(("Gaussian Switch Far", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 50_000), new GaussianLongGenerator(10_000_000, 50_000))));
-        // simulations.Add(("Dataset CL", new DataBasedGenerator("case_cl.dat")));
-        // simulations.Add(("Dataset VCC", new DataBasedGenerator("case_vcc.dat")));
-        // simulations.Add(("Dataset VDC", new DataBasedGenerator("case_vdc.dat")));
-        // simulations.Add(("Dataset Shared CL+VCC+VDC", new MultimodalGenerator<long>(new DataBasedGenerator("case_cl.dat"), new DataBasedGenerator("case_vcc.dat"), new DataBasedGenerator("case_vdc.dat"))));
+        simulations.Add(("Gaussian σ = 200K", new GaussianLongGenerator(0, 200_000)));
+        simulations.Add(("Gaussian σ = 100K", new GaussianLongGenerator(0, 100_000)));
+        simulations.Add(("Gaussian σ = 50K", new GaussianLongGenerator(0, 50_000)));
+        simulations.Add(("Gaussian Bi-Modal", new MultimodalGenerator<long>(new GaussianLongGenerator(0, 50_000), new GaussianLongGenerator(100_000, 50_000))));
+        simulations.Add(("Gaussian Switch Near", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 50_000), new GaussianLongGenerator(100_000, 50_000))));
+        simulations.Add(("Gaussian Switch Far", new SwitchableGenerator<long>(10_000, new GaussianLongGenerator(0, 50_000), new GaussianLongGenerator(10_000_000, 50_000))));
+        simulations.Add(("Dataset CL", new DataBasedGenerator("case_cl.dat")));
+        simulations.Add(("Dataset VCC", new DataBasedGenerator("case_vcc.dat")));
+        simulations.Add(("Dataset VDC", new DataBasedGenerator("case_vdc.dat")));
+        simulations.Add(("Dataset Shared CL+VCC+VDC", new MultimodalGenerator<long>(new DataBasedGenerator("case_cl.dat"), new DataBasedGenerator("case_vcc.dat"), new DataBasedGenerator("case_vdc.dat"))));
 
         // Run simulations in parallel
         var tasks = simulations.Select(simulation => Task.Run(() =>
