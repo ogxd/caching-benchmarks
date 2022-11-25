@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using ScottPlot5::ScottPlot.Axis.StandardAxes;
 using ScottPlot5.ScottPlot;
 using ScottPlot5.ScottPlot.Style;
 
@@ -28,20 +29,20 @@ public class ScotPlott5Plotter : IPlotter
             var marker = new Marker(MarkerShape.Circle, color, 5);
             
             plot.Add.Scatter(
-                serie.Point.Select(x => x.x).ToArray(),
-                serie.Point.Select(x => x.y).ToArray(),
+                serie.Points.Select(x => x.x).ToArray(),
+                serie.Points.Select(x => x.y).ToArray(),
                 marker);
 
             var legendItem = new LegendItem();
             legendItem.Label = serie.Name;
-            legendItem.Line = new Stroke(color, 2);
+            legendItem.Line = new Stroke(color, 3);
             legendItem.Marker = marker;
             
             legend.Add(legendItem);
 
             i++;
         }
-        
+
         plot.Add.Legend(legend);
 
         _plots.Add((name, plot));

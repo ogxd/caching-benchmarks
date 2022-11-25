@@ -22,8 +22,8 @@ public class ScotPlottPlotter : IPlotter
         foreach (var serie in series)
         {
             plot.PlotScatter(
-                serie.Point.Select(x => x.x).ToArray(),
-                serie.Point.Select(x => x.y).ToArray(),
+                serie.Points.Select(x => x.x).ToArray(),
+                serie.Points.Select(x => x.y).ToArray(),
                 label: serie.Name,
                 color: ColorFromHSV(1d * i / series.Count, 1, 1));
             
