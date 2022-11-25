@@ -1,86 +1,26 @@
-﻿using Microsoft.VisualStudio.TestPlatform.ObjectModel;
-using ScottPlot;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.Metrics;
-using System.Drawing;
-using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace Caching.Tests;
 
 public class CacheBenchmark
 {
-    public static void Analyze<K, V>(string analysisName, ObserverTest metricService, Func<K, V> factory, IGenerator<K> generator, params (string testName, ICache<K, V> cache)[] tests)
+    public static void Analyze<K, V>(string analysisName, Func<K, V> factory, IPlotter plotter, IGenerator<K> generator, IEnumerable<TestCase<K, V>> testCases)
     {
-        Dictionary<string, Plot> plots = new Dictionary<string, Plot>();
-
-        plots.Add("efficiency", new Plot(1000, 800));
-        plots["efficiency"].Title(analysisName);
-        plots["efficiency"].XLabel("cache size");
-        plots["efficiency"].YLabel("efficiency %");
-        //plots["efficiency"].Legend(location: legendLocation.upperLeft);
-
-        //AnalyzeBaseline(plots, generator);
-
-        int i = 0;
-        foreach (var test in tests)
+        var series = new List<Serie>();
+        
+        foreach (var testCase in testCases)
         {
-            AnalyzeCache(i, test.testName.Split('`')[0], test.cache, factory, metricService, plots, generator);
-            i++;
+            var serie = ComputeEfficiency(testCase, factory, generator);
+            series.Add(serie);
         }
 
-        string dirName = "graphs"; //analysisName.ToLower().Replace(' ', '_');
-        Directory.CreateDirectory(dirName);
-
-        foreach (var pair in plots)
-        {
-            string filename = $"{analysisName} - {pair.Key}.png";
-            pair.Value.SaveFig(Path.Combine(dirName, filename));
-            Console.WriteLine($"Plot saved to {Path.Combine(Directory.GetCurrentDirectory(), dirName, filename)}");
-        }
+        plotter.Plot(analysisName, "Max cache size", "Efficiency %", series);
     }
 
-    private static void AnalyzeBaseline<K>(Dictionary<string, Plot> plots, IGenerator<K> generator)
-    {
-        generator.Reset();
-
-        Dictionary<K, int> hashByOccurrences = new Dictionary<K, int>();
-
-        for (int i = 0; i < 0; i++)
-        {
-            generator.Generate();
-        }
-
-        for (int i = 0; i < 1_000_000; i++)
-        {
-            ref var count = ref CollectionsMarshal.GetValueRefOrAddDefault(hashByOccurrences, generator.Generate(), out _);
-            count++;
-        }
-
-        var orderedOccurrences = hashByOccurrences.OrderByDescending(x => x.Value).Select(x => x.Value).ToArray();
-
-        var measurements = new List<(int size, int calls, int misses)>();
-
-        for (int i = 1; i < 10; i++)
-        {
-            int size = 1000 * i * i;
-
-            int hits = orderedOccurrences.Take(size).Sum();
-            int misses = orderedOccurrences.Skip(size).Sum();
-
-            measurements.Add((size, hits + misses, misses));
-        }
-
-        double[] sizes = measurements.Select(x => (double)x.size).ToArray();
-
-        double[] efficiency = measurements.Select(x => (x.calls == 0) ? 0 : 100d * (x.calls - x.misses) / x.calls).ToArray();
-        plots["efficiency"].PlotScatter(sizes, efficiency, label: "Baseline", color: Color.Black);
-    }
-
-    private static void AnalyzeCache<K, V>(int c, string testName, ICache<K, V> cache, Func<K, V> factory, ObserverTest metricService, Dictionary<string, Plot> plots, IGenerator<K> generator)
+    private static Serie ComputeEfficiency<K, V>(TestCase<K, V> testCase, Func<K, V> factory, IGenerator<K> generator) 
     {
         var measurements = new List<(int size, int calls, int misses)>();
 
@@ -92,8 +32,8 @@ public class CacheBenchmark
         {
             int size = 1000 * i * i;
 
-            cache.Clear();
-            cache.MaxSize = size;
+            testCase.Cache.Clear();
+            testCase.Cache.MaxSize = size;
 
             generator.Reset();
 
@@ -101,33 +41,26 @@ public class CacheBenchmark
             for (int j = 0; j < 100_000; j++)
             {
                 K key = generator.Generate();
-                _ = cache.GetOrCreate(key, factory);
+                _ = testCase.Cache.GetOrCreate(key, factory);
             }
 
-            metricService.Reset();
+            testCase.Counter.Reset();
 
             for (int j = 0; j < 800_000; j++)
             {
                 K key = generator.Generate();
-                _ = cache.GetOrCreate(key, factory);
+                _ = testCase.Cache.GetOrCreate(key, factory);
             }
 
-            measurements.Add((size, metricService.CacheCalls, metricService.CacheMisses));
+            measurements.Add((size, testCase.Counter.CountCalls, testCase.Counter.CountMisses));
         }
 
         sw.Stop();
 
-        Console.WriteLine($"{testName} in {sw.Elapsed}");
+        Console.WriteLine($"{testCase.Name} in {sw.Elapsed}");
 
-        double[] sizes = measurements.Select(x => (double)x.size).ToArray();
-        
-        double[] efficiency = measurements.Select(x => (x.calls == 0) ? 0 : 100d * (x.calls - x.misses) / x.calls).ToArray();
+        var points = measurements.Select(x => ((double)x.size, (x.calls == 0) ? 0 : 100d * (x.calls - x.misses) / x.calls)).ToArray();
 
-        int textPos = iterations - 4 - c;
-
-        plots["efficiency"].PlotScatter(sizes, efficiency, label: testName, color: _colors[c]);
-        plots["efficiency"].PlotText(testName, sizes[textPos], efficiency[textPos], color: _colors[c]);
+        return new Serie(testCase.Name, points);
     }
-
-    private static readonly Color[] _colors = new Color[] { Color.Red, Color.RebeccaPurple, Color.Blue, Color.Orange, Color.Green, Color.HotPink, Color.Olive, Color.DarkTurquoise, Color.Salmon };
 }
