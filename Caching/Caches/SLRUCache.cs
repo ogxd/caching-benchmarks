@@ -105,7 +105,7 @@ public class SLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             {
                 Entry entry = _probationarySegment[index.index].value;
                 _probationarySegment.Remove(index.index);
-                if (_protectedSegment.Count >= MaxSize)
+                if (_protectedSegment.Count >= 0.8 * _maximumKeyCount)
                 {
                     Entry downgrade = _protectedSegment[_protectedSegment.FirstIndex].value;
                     _protectedSegment.Remove(_protectedSegment.FirstIndex);

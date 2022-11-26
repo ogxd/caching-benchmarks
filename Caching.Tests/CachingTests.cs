@@ -15,10 +15,10 @@ public class CachingTests
     private static IEnumerable<TestCase<long, long>> Caches()
     {
         CacheCounter counter;
-        yield return new ("LRU", new LRUCache<long, long>(maximumKeyCount: (int)(1.2d * CACHE_SIZE), 1.0d, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("LRU", new LRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
         yield return new ("SLRU", new SLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
-        yield return new ("MSLRU", new MSLRUCache<long, long>(maximumKeyCount: (int)(1.2d * CACHE_SIZE), 5, cacheObserver: counter = new CacheCounter()), counter);
-        //yield return new ("Real LFU", new RealLFUCache<long, long>((int)(1.2d * CACHE_SIZE), cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("MSLRU", new MSLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 5, cacheObserver: counter = new CacheCounter()), counter);
+        //yield return new ("Real LFU", new RealLFUCache<long, long>(CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         yield return new ("LU", new LUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         yield return new ("LUDA", new LUDACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         yield return new ("LFU", new LFUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);

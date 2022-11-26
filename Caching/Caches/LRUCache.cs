@@ -59,12 +59,9 @@ public class LRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
         _cacheObserver?.CountCacheCall();
 
-        if (_perKeyMap.Count > _oversize * _maximumKeyCount)
+        while (_perKeyMap.Count > _maximumKeyCount)
         {
-            while (_perKeyMap.Count > _maximumKeyCount)
-            {
-                RemoveFirst();
-            }
+            RemoveFirst();
         }
 
         TValue value;
