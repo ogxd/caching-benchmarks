@@ -6,9 +6,9 @@ using System.Runtime.InteropServices;
 
 namespace Caching;
 
-public class LFUCache<TKey, TValue> : LFUCache<TKey, TKey, TValue>
+public class LFUCache2<TKey, TValue> : LFUCache2<TKey, TKey, TValue>
 {
-    public LFUCache(
+    public LFUCache2(
         int maximumKeyCount,
         IEqualityComparer<TKey> keyComparer = null,
         ICacheObserver cacheObserver = null,
@@ -21,7 +21,7 @@ public class LFUCache<TKey, TValue> : LFUCache<TKey, TKey, TValue>
     { }
 }
 
-public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
+public class LFUCache2<TItem, TKey, TValue> : ICache<TItem, TValue>
 {
     private readonly ICacheObserver _cacheObserver;
 
@@ -36,7 +36,7 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     private int _maximumKeyCount;
 
-    public LFUCache(
+    public LFUCache2(
         int maximumKeyCount,
         Func<TItem, TKey> keyFactory,
         IEqualityComparer<TKey> keyComparer = null,
@@ -110,7 +110,7 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
     {
         long currentTimestamp = Stopwatch.GetTimestamp();
         double instantFreq = 1d * Stopwatch.Frequency / (currentTimestamp - lastUsedTimestamp);
-        return (int)Math.Round(Math.Log10(instantFreq * 1d));
+        return (int)Math.Ceiling(Math.Log10(instantFreq * 1d));
     }
 
     internal TValue GetValue(ref int entryIndex, bool updateUsed = true)
@@ -128,7 +128,7 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         }
         else
         {
-            roundedFreq -= 1;
+            //roundedFreq = int.MinValue;
         }
 
         value = entryNode.value.value;

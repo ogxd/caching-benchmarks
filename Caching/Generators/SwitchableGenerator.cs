@@ -4,14 +4,16 @@ public class SwitchableGenerator<T> : IGenerator<T>
 {
     private readonly IGenerator<T>[] _generators;
     private readonly int _switchAfter;
+    private readonly bool _switchOnce;
 
     private int _callsForCurrentGenerator;
     private int _currentGeneratorIndex;
 
-    public SwitchableGenerator(int switchAfter, params IGenerator<T>[] generators)
+    public SwitchableGenerator(int switchAfter, bool switchOnce, params IGenerator<T>[] generators)
     {
         _generators = generators;
         _switchAfter = switchAfter;
+        _switchOnce = switchOnce;
     }
 
     public T Generate()
@@ -25,7 +27,7 @@ public class SwitchableGenerator<T> : IGenerator<T>
             {
                 _currentGeneratorIndex++;
                 _currentGeneratorIndex = _currentGeneratorIndex % _generators.Length; // Wrap
-                _callsForCurrentGenerator = 0;
+                _callsForCurrentGenerator = _switchOnce ? int.MinValue : 0;
             }
             currentGenerator = _currentGeneratorIndex;
         }
