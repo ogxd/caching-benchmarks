@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
+using System.IO.Enumeration;
 using System.Runtime.InteropServices;
 
 namespace Caching;
@@ -29,7 +30,8 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
     private readonly IndexBasedLinkedList<Entry> _entriesByHits;
     private readonly IndexBasedLinkedList<FreqCount> _freqsLog10;
     
-    // Only use for LFURA
+    // Only used for LFURA
+    // Index of entry in entries by hits list, ordered by recency
     internal readonly IndexBasedLinkedList<int> _entriesByRecency;
     
     private readonly Func<TItem, TKey> _keyFactory;
@@ -113,207 +115,220 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         return (int)Math.Round(Math.Log10(instantFreq * 1d));
     }
 
-    internal TValue GetValue(ref int entryIndex, bool updateUsed = true)
+    internal TValue GetValue(ref int entryIndex)
     {
-        TValue value;
-
         ref var entryNode = ref _entriesByHits[entryIndex];
         ref var freqNode = ref _freqsLog10[entryNode.value.freqIndex];
-
+        
+        // Refresh the "last used" timestamp
+        entryNode.value.lastUsed = Stopwatch.GetTimestamp();
+        
         int roundedFreq = GetFrequency(entryNode.value.lastUsed);
-
-        if (updateUsed)
-        {
-            entryNode.value.lastUsed = Stopwatch.GetTimestamp();
-        }
-        else
-        {
-            roundedFreq -= 1;
-        }
-
-        value = entryNode.value.value;
-
+        
+        // If frequency has changed, promote or unpromote the entry
         if (roundedFreq > freqNode.value.freqLog10)
         {
-            // If there is no next hitsCount node or next node is not hits + 1, we must create this node
-            if (freqNode.after == -1)
-            {
-                var oldEntryIndex = entryIndex;
-                var nextEntryIndex = entryNode.after;
-
-                // Copy (because otherwise entry is set to default after removal)
-                var entry = entryNode.value;
-                var oldHitsCountIndex = entry.freqIndex;
-
-                _entriesByHits.Remove(entryIndex);
-
-                if (freqNode.after == -1)
-                {
-                    // Top 1
-                    entryIndex = _entriesByHits.AddLast(entry);
-                }
-                else
-                {
-                    Debug.Assert(_freqsLog10[freqNode.after].value.freqLog10 > freqNode.value.freqLog10 + 1, "Ordering issue");
-                    entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[freqNode.after].value.firstEntryWithHitsIndex);
-                }
-
-                _entriesByRecency.Remove(entry.recency);
-                var recencyIndex = _entriesByRecency.AddLast(entryIndex);
-                _entriesByHits[entryIndex].value.recency = recencyIndex;
-
-                // Add registration for hits + 1
-                var nextFreq = new FreqCount();
-                nextFreq.refCount = 1; // Only one ref since this is a new node
-                nextFreq.freqLog10 = freqNode.value.freqLog10 + 1; // Next node is hits + 1
-                nextFreq.firstEntryWithHitsIndex = entryIndex;
-
-                // Old hits registration get decrement of refcount
-                freqNode.value.refCount--;
-
-                int hitsPlusOneIndex = _freqsLog10.AddAfter(nextFreq, entry.freqIndex);
-                _entriesByHits[entryIndex].value.freqIndex = hitsPlusOneIndex;
-
-                // If previous hits registration has no references anymore, remove it
-                if (freqNode.value.refCount <= 0)
-                {
-                    _freqsLog10.Remove(entry.freqIndex);
-                }
-                else
-                {
-                    if (_freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex == oldEntryIndex)
-                    {
-                        _freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex = nextEntryIndex;
-                    }
-                }
-            }
-            else
-            {
-                // Copy (because otherwise entry is set to default after removal)
-                var entry = entryNode.value;
-                var oldHitsCountIndex = entry.freqIndex;
-                entry.freqIndex = freqNode.after;
-
-                var oldEntryIndex = entryIndex;
-                var nextEntryIndex = entryNode.after;
-
-                ref var hitsPlusOneNode = ref _freqsLog10[freqNode.after];
-
-                _entriesByHits.Remove(entryIndex);
-                entryIndex = _entriesByHits.AddAfter(entry, hitsPlusOneNode.value.firstEntryWithHitsIndex);
-
-                _entriesByRecency.Remove(entry.recency);
-                var recencyIndex = _entriesByRecency.AddLast(entryIndex);
-                _entriesByHits[entryIndex].value.recency = recencyIndex;
-
-                freqNode.value.refCount--;
-                hitsPlusOneNode.value.refCount++;
-
-                // If previous hits registration has no references anymore, remove it
-                if (freqNode.value.refCount <= 0)
-                {
-                    _freqsLog10.Remove(oldHitsCountIndex);
-                }
-                else
-                {
-                    if (_freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex == oldEntryIndex)
-                    {
-                        _freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex = nextEntryIndex;
-                    }
-                }
-            }
+            Promote(ref entryIndex);
         }
         else if (roundedFreq < freqNode.value.freqLog10)
         {
-            // If there is no next hitsCount node or next node is not hits + 1, we must create this node
-            if (freqNode.before == -1)
+            Unpromote(ref entryIndex);
+        }
+
+        return entryNode.value.value;
+    }
+    
+    
+    internal void Promote(ref int entryIndex)
+    {
+        ref var entryNode = ref _entriesByHits[entryIndex];
+        ref var freqNode = ref _freqsLog10[entryNode.value.freqIndex];
+        
+        // If there is no next hitsCount node or next node is not hits + 1, we must create this node
+        if (freqNode.after == -1)
+        {
+            var oldEntryIndex = entryIndex;
+            var nextEntryIndex = entryNode.after;
+
+            // Copy (because otherwise entry is set to default after removal)
+            var entry = entryNode.value;
+            var oldHitsCountIndex = entry.freqIndex;
+
+            _entriesByHits.Remove(entryIndex);
+
+            if (freqNode.after == -1)
             {
-                var oldEntryIndex = entryIndex;
-                var nextEntryIndex = entryNode.after;
-
-                // Copy (because otherwise entry is set to default after removal)
-                var entry = entryNode.value;
-                var oldHitsCountIndex = entry.freqIndex;     
-
-                _entriesByHits.Remove(entryIndex);
-
-                if (freqNode.before == -1)
-                {
-                    entryIndex = _entriesByHits.AddFirst(entry);
-                }
-                else
-                {
-                    Debug.Assert(_freqsLog10[freqNode.before].value.freqLog10 < freqNode.value.freqLog10 + 1, "Ordering issue");
-                    entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[freqNode.before].value.firstEntryWithHitsIndex);
-                }
-
-                _entriesByRecency.Remove(entry.recency);
-                var recencyIndex = _entriesByRecency.AddLast(entryIndex);
-                _entriesByHits[entryIndex].value.recency = recencyIndex;
-
-                // Add registration for freq - 1
-                var prevFreq = new FreqCount();
-                prevFreq.refCount = 1; // Only one ref since this is a new node
-                prevFreq.freqLog10 = freqNode.value.freqLog10 - 1; // Next node is hits + 1
-                prevFreq.firstEntryWithHitsIndex = entryIndex;
-
-                // Old hits registration get decrement of refcount
-                freqNode.value.refCount--;
-
-                int hitsPlusOneIndex = _freqsLog10.AddBefore(prevFreq, entry.freqIndex);
-                _entriesByHits[entryIndex].value.freqIndex = hitsPlusOneIndex;
-
-                // If previous hits registration has no references anymore, remove it
-                if (freqNode.value.refCount <= 0)
-                {
-                    _freqsLog10.Remove(entry.freqIndex);
-                }
-                else
-                {
-                    if (_freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex == oldEntryIndex)
-                    {
-                        _freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex = nextEntryIndex;
-                    }
-                }
+                // Top 1
+                entryIndex = _entriesByHits.AddLast(entry);
             }
             else
             {
-                // Copy (because otherwise entry is set to default after removal)
-                var entry = entryNode.value;
-                var oldHitsCountIndex = entry.freqIndex;
-                entry.freqIndex = freqNode.before;
+                Debug.Assert(_freqsLog10[freqNode.after].value.freqLog10 > freqNode.value.freqLog10 + 1, "Ordering issue");
+                entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[freqNode.after].value.firstEntryWithHitsIndex);
+            }
 
-                var oldEntryIndex = entryIndex;
-                var nextEntryIndex = entryNode.after;
+            _entriesByRecency.Remove(entry.recency);
+            var recencyIndex = _entriesByRecency.AddLast(entryIndex);
+            _entriesByHits[entryIndex].value.recency = recencyIndex;
 
-                ref var hitsMinusOneNode = ref _freqsLog10[freqNode.before];
+            // Add registration for hits + 1
+            var nextFreq = new FreqCount();
+            nextFreq.refCount = 1; // Only one ref since this is a new node
+            nextFreq.freqLog10 = freqNode.value.freqLog10 + 1; // Next node is hits + 1
+            nextFreq.firstEntryWithHitsIndex = entryIndex;
 
-                _entriesByHits.Remove(entryIndex);
-                entryIndex = _entriesByHits.AddAfter(entry, hitsMinusOneNode.value.firstEntryWithHitsIndex);
-                
-                _entriesByRecency.Remove(entry.recency);
-                var recencyIndex = _entriesByRecency.AddLast(entryIndex);
-                _entriesByHits[entryIndex].value.recency = recencyIndex;
+            // Old hits registration get decrement of refcount
+            freqNode.value.refCount--;
 
-                freqNode.value.refCount--;
-                hitsMinusOneNode.value.refCount++;
+            int hitsPlusOneIndex = _freqsLog10.AddAfter(nextFreq, entry.freqIndex);
+            _entriesByHits[entryIndex].value.freqIndex = hitsPlusOneIndex;
 
-                // If previous hits registration has no references anymore, remove it
-                if (freqNode.value.refCount <= 0)
+            // If previous hits registration has no references anymore, remove it
+            if (freqNode.value.refCount <= 0)
+            {
+                _freqsLog10.Remove(entry.freqIndex);
+            }
+            else
+            {
+                if (_freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex == oldEntryIndex)
                 {
-                    _freqsLog10.Remove(oldHitsCountIndex);
-                }
-                else
-                {
-                    if (_freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex == oldEntryIndex)
-                    {
-                        _freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex = nextEntryIndex;
-                    }
+                    _freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex = nextEntryIndex;
                 }
             }
         }
+        else
+        {
+            // Copy (because otherwise entry is set to default after removal)
+            var entry = entryNode.value;
+            var oldHitsCountIndex = entry.freqIndex;
+            entry.freqIndex = freqNode.after;
 
-        return value;
+            var oldEntryIndex = entryIndex;
+            var nextEntryIndex = entryNode.after;
+
+            ref var hitsPlusOneNode = ref _freqsLog10[freqNode.after];
+
+            _entriesByHits.Remove(entryIndex);
+            entryIndex = _entriesByHits.AddAfter(entry, hitsPlusOneNode.value.firstEntryWithHitsIndex);
+
+            _entriesByRecency.Remove(entry.recency);
+            var recencyIndex = _entriesByRecency.AddLast(entryIndex);
+            _entriesByHits[entryIndex].value.recency = recencyIndex;
+
+            freqNode.value.refCount--;
+            hitsPlusOneNode.value.refCount++;
+
+            // If previous hits registration has no references anymore, remove it
+            if (freqNode.value.refCount <= 0)
+            {
+                _freqsLog10.Remove(oldHitsCountIndex);
+            }
+            else
+            {
+                if (_freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex == oldEntryIndex)
+                {
+                    _freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex = nextEntryIndex;
+                }
+            }
+        }
+    }
+
+    internal void Unpromote(ref int entryIndex)
+    {
+        ref var entryNode = ref _entriesByHits[entryIndex];
+        ref var freqNode = ref _freqsLog10[entryNode.value.freqIndex];
+        
+        // If there is no next hitsCount node or next node is not hits + 1, we must create this node
+        if (freqNode.before == -1)
+        {
+            var oldEntryIndex = entryIndex;
+            var nextEntryIndex = entryNode.after;
+
+            // Copy (because otherwise entry is set to default after removal)
+            var entry = entryNode.value;
+            var oldHitsCountIndex = entry.freqIndex;
+
+            _entriesByHits.Remove(entryIndex);
+
+            // if (freqNode.after == -1)
+            if (freqNode.before == -1)
+            {
+                // entryIndex = _entriesByHits.AddLast(entry);
+                entryIndex = _entriesByHits.AddFirst(entry);
+            }
+            else
+            {
+                Debug.Assert(_freqsLog10[freqNode.before].value.freqLog10 < freqNode.value.freqLog10 + 1, "Ordering issue");
+                // entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[freqNode.after].value.firstEntryWithHitsIndex);
+                entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[freqNode.before].value.firstEntryWithHitsIndex);
+            }
+
+            _entriesByRecency.Remove(entry.recency);
+            var recencyIndex = _entriesByRecency.AddLast(entryIndex);
+            _entriesByHits[entryIndex].value.recency = recencyIndex;
+
+            // Add registration for freq - 1
+            var prevFreq = new FreqCount();
+            prevFreq.refCount = 1; // Only one ref since this is a new node
+            // nextFreq.freqLog10 = freqNode.value.freqLog10 + 1;
+            prevFreq.freqLog10 = freqNode.value.freqLog10 - 1; // Next node is hits + 1
+            prevFreq.firstEntryWithHitsIndex = entryIndex;
+
+            // Old hits registration get decrement of refcount
+            freqNode.value.refCount--;
+
+            // int hitsPlusOneIndex = _freqsLog10.AddAfter(nextFreq, entry.freqIndex);
+            int hitsPlusOneIndex = _freqsLog10.AddBefore(prevFreq, entry.freqIndex);
+            _entriesByHits[entryIndex].value.freqIndex = hitsPlusOneIndex;
+
+            // If previous hits registration has no references anymore, remove it
+            if (freqNode.value.refCount <= 0)
+            {
+                _freqsLog10.Remove(entry.freqIndex);
+            }
+            else
+            {
+                if (_freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex == oldEntryIndex)
+                {
+                    _freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex = nextEntryIndex;
+                }
+            }
+        }
+        else
+        {
+            // Copy (because otherwise entry is set to default after removal)
+            var entry = entryNode.value;
+            var oldHitsCountIndex = entry.freqIndex;
+            entry.freqIndex = freqNode.before;
+
+            var oldEntryIndex = entryIndex;
+            var nextEntryIndex = entryNode.after;
+
+            ref var hitsMinusOneNode = ref _freqsLog10[freqNode.before];
+
+            _entriesByHits.Remove(entryIndex);
+            entryIndex = _entriesByHits.AddAfter(entry, hitsMinusOneNode.value.firstEntryWithHitsIndex);
+
+            _entriesByRecency.Remove(entry.recency);
+            var recencyIndex = _entriesByRecency.AddLast(entryIndex);
+            _entriesByHits[entryIndex].value.recency = recencyIndex;
+
+            freqNode.value.refCount--;
+            hitsMinusOneNode.value.refCount++;
+
+            // If previous hits registration has no references anymore, remove it
+            if (freqNode.value.refCount <= 0)
+            {
+                _freqsLog10.Remove(oldHitsCountIndex);
+            }
+            else
+            {
+                if (_freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex == oldEntryIndex)
+                {
+                    _freqsLog10[oldHitsCountIndex].value.firstEntryWithHitsIndex = nextEntryIndex;
+                }
+            }
+        }
     }
 
     private void RemoveFirst()

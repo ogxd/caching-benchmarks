@@ -34,13 +34,13 @@ public class CacheBenchmarkUtilities
     {
         var measurements = new List<(int size, int calls, int misses)>();
 
-        int iterations = 21;
+        int iterations = 10;
 
         Stopwatch sw = Stopwatch.StartNew();
-
-        for (int i = 1; i < iterations; i++)
+        
+        for (int i = 1; i <= iterations; i++)
         {
-            int size = 1000 * i;
+            int size = 1000 * i * i;
 
             testCase.Cache.Clear();
             testCase.Cache.MaxSize = size;
@@ -48,11 +48,11 @@ public class CacheBenchmarkUtilities
             generator.Reset();
 
             // Warmup
-            // for (int j = 0; j < 100_000; j++)
-            // {
-            //     K key = generator.Generate();
-            //     _ = testCase.Cache.GetOrCreate(key, factory);
-            // }
+            for (int j = 0; j < 100_000; j++)
+            {
+                K key = generator.Generate();
+                _ = testCase.Cache.GetOrCreate(key, factory);
+            }
 
             testCase.Counter.Reset();
 

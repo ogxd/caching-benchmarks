@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Caching.Caches;
 
-public class RealLFUCache<K, V> : ICache<K, V>
+public class NaiveLFUCache<K, V> : ICache<K, V>
 {
     private int _minCount;
     private int _capacity;
@@ -13,7 +13,7 @@ public class RealLFUCache<K, V> : ICache<K, V>
 
     public int MaxSize { get => _capacity; set => _capacity = value; }
 
-    public RealLFUCache(int capacity, ICacheObserver cacheObserver = null)
+    public NaiveLFUCache(int capacity, ICacheObserver cacheObserver = null)
     {
         _capacity = capacity;
         _countMap = new Dictionary<int, LinkedList<K>> { [1] = new() };

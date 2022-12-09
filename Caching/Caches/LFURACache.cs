@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 
 namespace Caching;
 
@@ -40,7 +37,7 @@ public class LFURACache<TItem, TKey, TValue> : LFUCache<TItem, TKey, TValue>
             // Retreive index on least recently refreshed item
             int leastRecentlyRefreshed = _entriesByRecency[_entriesByRecency.FirstIndex].value;
             
-            GetValue(ref leastRecentlyRefreshed, false);
+            Unpromote(ref leastRecentlyRefreshed);
         }
 
         return base.GetOrCreate(item, factory);

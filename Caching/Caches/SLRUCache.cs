@@ -13,16 +13,14 @@ public class SLRUCache<TKey, TValue> : SLRUCache<TKey, TKey, TValue>
 {
     public SLRUCache(
         int maximumKeyCount,
-        double oversize,
+        double midPoint,
         IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null) : base(
+        ICacheObserver cacheObserver = null) : base(
             maximumKeyCount,
-            oversize,
+            midPoint,
             static item => item,
             keyComparer,
-            cacheObserver,
-            expiration)
+            cacheObserver)
     { }
 }
 
@@ -34,8 +32,6 @@ public record struct Index
 
 public class SLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 {
-    private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
-
     private readonly ICacheObserver _cacheObserver;
 
     private readonly Dictionary<TKey, Index> _perKeyMap;
@@ -44,17 +40,16 @@ public class SLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     private readonly Func<TItem, TKey> _keyFactory;
 
-    private readonly double _oversize;
+    private readonly double _midPoint;
 
     private int _maximumKeyCount;
 
     public SLRUCache(
         int maximumKeyCount,
-        double oversize,
+        double midPoint,
         Func<TItem, TKey> keyFactory,
         IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null)
+        ICacheObserver cacheObserver = null)
     {
         _keyFactory = keyFactory ?? throw new ArgumentNullException("keyFactory");
         _perKeyMap = new Dictionary<TKey, Index>(keyComparer ?? EqualityComparer<TKey>.Default);
@@ -62,7 +57,7 @@ public class SLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         _probationarySegment = new IndexBasedLinkedList<Entry>();
         _cacheObserver = cacheObserver;
         _maximumKeyCount = maximumKeyCount;
-        _oversize = oversize;
+        _midPoint = midPoint;
     }
 
     public int MaxSize { get => _maximumKeyCount; set => _maximumKeyCount = value; }
@@ -78,7 +73,7 @@ public class SLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
         if (!exists)
         {
-            while (_probationarySegment.Count > 0.2 * _maximumKeyCount)
+            while (_probationarySegment.Count > _midPoint * _maximumKeyCount)
             {
                 RemoveFirst();
             }
@@ -105,7 +100,7 @@ public class SLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             {
                 Entry entry = _probationarySegment[index.index].value;
                 _probationarySegment.Remove(index.index);
-                if (_protectedSegment.Count >= 0.8 * _maximumKeyCount)
+                if (_protectedSegment.Count >= (1d - _midPoint) * _maximumKeyCount)
                 {
                     Entry downgrade = _protectedSegment[_protectedSegment.FirstIndex].value;
                     _protectedSegment.Remove(_protectedSegment.FirstIndex);

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Caching;
@@ -115,8 +116,11 @@ public class MSLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
                 {
                     ref var e = ref CollectionsMarshal.GetValueRefOrNullRef(_perKeyMap, removedEntry.key);
 
-                    e.segment = currentSegment;
-                    e.index = _entries[currentSegment].AddLast(removedEntry);
+                    if (!Unsafe.IsNullRef(ref e))
+                    {
+                        e.segment = currentSegment;
+                        e.index = _entries[currentSegment].AddLast(removedEntry);
+                    }
                 }
 
                 currentSegment--;

@@ -41,15 +41,19 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Update="case_cl.dat">
+	  <None Update="Datasets\case_cl.dat">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
-	  <None Update="case_vcc.dat">
+	  <None Update="Datasets\case_vcc.dat">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
-	  <None Update="case_vdc.dat">
+	  <None Update="Datasets\case_vdc.dat">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="..\**\*.png" Link="Results\%(Filename)%(Extension)" />
 	</ItemGroup>
 
 </Project>
