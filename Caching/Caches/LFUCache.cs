@@ -100,12 +100,8 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
             return value;
         }
-        else
-        {
-            value = GetValue(ref entryIndex);
-
-            return value;
-        }
+            
+        return GetValue(ref entryIndex);
     }
 
     internal int GetFrequency(long lastUsedTimestamp)
@@ -120,10 +116,10 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         ref var entryNode = ref _entriesByHits[entryIndex];
         ref var freqNode = ref _freqsLog10[entryNode.value.freqIndex];
         
+        int roundedFreq = GetFrequency(entryNode.value.lastUsed);
+        
         // Refresh the "last used" timestamp
         entryNode.value.lastUsed = Stopwatch.GetTimestamp();
-        
-        int roundedFreq = GetFrequency(entryNode.value.lastUsed);
         
         // If frequency has changed, promote or unpromote the entry
         if (roundedFreq > freqNode.value.freqLog10)
@@ -137,8 +133,7 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
         return entryNode.value.value;
     }
-    
-    
+
     internal void Promote(ref int entryIndex)
     {
         ref var entryNode = ref _entriesByHits[entryIndex];
@@ -352,7 +347,10 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         }
         else
         {
-            hitsCount.value.firstEntryWithHitsIndex = entry.after;
+            if (hitsCount.value.firstEntryWithHitsIndex == entryIndex)
+            {
+                hitsCount.value.firstEntryWithHitsIndex = entry.after;
+            }
         }
 
         _entriesByRecency.Remove(entry.value.recency);
