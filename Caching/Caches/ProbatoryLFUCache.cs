@@ -1,4 +1,5 @@
 ﻿#define PROGRESSIVE
+//#define PROMOTE_TO_BOTTOM
 
 using System;
 using System.Collections.Generic;
@@ -111,6 +112,11 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             long currentTimestamp = Stopwatch.GetTimestamp();
             int frequency = GetFrequency(entry.lastUsed, currentTimestamp);
 
+#if PROMOTE_TO_BOTTOM
+            if (_frequencyGroups.Count > 0)
+                frequency = _frequencyGroups.First().Key;
+#endif
+            
             entry.frequency = frequency;
             entry.lastUsed = currentTimestamp;
 
