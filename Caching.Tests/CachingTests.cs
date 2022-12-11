@@ -20,11 +20,11 @@ public class CachingTests
         // yield return new ("SLRU", new SLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
         // yield return new ("MSLRU", new MSLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 5, cacheObserver: counter = new CacheCounter()), counter);
         // yield return new ("Naive LFU", new NaiveLFUCache<long, long>(CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
-        yield return new ("LU", new LUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
-        yield return new ("LUDA", new LUDACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
+        //yield return new ("LU", new LUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
+        //yield return new ("LUDA", new LUDACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         yield return new ("LFU", new LFUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         yield return new ("Probatory LFU", new ProbatoryLFUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
-        yield return new ("LFURA", new LFURACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
+        //yield return new ("LFURA", new LFURACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         //yield return new ("LIRS", new LIRSCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
     }
     
