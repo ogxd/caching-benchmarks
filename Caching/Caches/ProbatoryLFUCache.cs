@@ -24,9 +24,9 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
     private readonly ICacheObserver _cacheObserver;
 
     private readonly Dictionary<TKey, int> _perKeyMap;
-    private readonly IndexBasedLinkedList<Entry> _entriesByHits;
-    private readonly IndexBasedLinkedList<Entry> _probatorySegment;
-    private readonly Dictionary<int, FreqCount> _freqsLog10;
+    private readonly IndexBasedLinkedList<Entry> _hotEntries;
+    private readonly IndexBasedLinkedList<Entry> _probatoryEntries;
+    private readonly LinkedDictionary<int, FreqCount> _freqsLog10 = new();
     
     private readonly Func<TItem, TKey> _keyFactory;
 
@@ -40,9 +40,8 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
     {
         _keyFactory = keyFactory ?? throw new ArgumentNullException("keyFactory");
         _perKeyMap = new Dictionary<TKey, int>(keyComparer ?? EqualityComparer<TKey>.Default);
-        _entriesByHits = new IndexBasedLinkedList<Entry>();
-        _probatorySegment = new IndexBasedLinkedList<Entry>();
-        _freqsLog10 = new Dictionary<int, FreqCount>();
+        _hotEntries = new IndexBasedLinkedList<Entry>();
+        _probatoryEntries = new IndexBasedLinkedList<Entry>();
         _cacheObserver = cacheObserver;
         _maximumKeyCount = maximumKeyCount;
     }
@@ -56,13 +55,14 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
         _cacheObserver?.CountCacheCall();
 
-        while (_entriesByHits.Count > _maximumKeyCount)
+        while (_hotEntries.Count > _maximumKeyCount)
         {
             RemoveFirst();
         }
 
         TValue value;
 
+        // Case 1: Entry did not exist -> It is added as a probatory entry (no value stored)
         if (!exists)
         {
             _cacheObserver?.CountCacheMiss();
@@ -71,12 +71,13 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             Entry entry = new(key);
             // probatory segment is LRU style
             // We use negative index for probatory segments to keep all entrys under the same dictionary (avoid double lookups)
-            entryIndex = -_probatorySegment.AddLast(entry) - 1;
+            entryIndex = -_probatoryEntries.AddLast(entry) - 1;
             
             // Compute value but not store it as it is likely to be a entry that will never be requested again
             return factory(item);
         }
         
+        // Case 2: Entry exists but it was probatory -> Move it from probatory entries to hot entries
         if (entryIndex < 0)
         {
             _cacheObserver?.CountCacheMiss();
@@ -85,33 +86,42 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             // We must not promote it to non probatory
             var probatoryIndex = -entryIndex - 1;
 
-            Entry entry = _probatorySegment[probatoryIndex].value;
+            Entry entry = _probatoryEntries[probatoryIndex].value;
             value = entry.value = factory(item);
 
-            // Remove from probatory segment
-            _probatorySegment.Remove(probatoryIndex);
+            // Remove from probatory entries
+            _probatoryEntries.Remove(probatoryIndex);
 
             var timestamp = Stopwatch.GetTimestamp();
             int frequency = GetFrequency(entry.lastUsed);
 
-            entry.freqIndex = frequency;
+            entry.frequency = frequency;
             entry.lastUsed = timestamp;
             
             // Add to hot segment
+            ref FreqCount freqCount = ref _freqsLog10.GetValueRefOrNullRef(frequency);
             
-            ref FreqCount freqCount = ref CollectionsMarshal.GetValueRefOrAddDefault(_freqsLog10, frequency, out bool fexists);
-            freqCount.refCount++;
-            freqCount.firstEntryWithHitsIndex = entryIndex;
-            if (fexists)
+            // Case 2.1: It's the first entry with that frequency
+            if (Unsafe.IsNullRef(ref freqCount))
             {
-                entryIndex = _entriesByHits.AddBefore(entry, freqCount.firstEntryWithHitsIndex);
-                freqCount.firstEntryWithHitsIndex = entryIndex;
+                int nextFreq = frequency + 1;
+                // Problem: we can't look indefinitely, it's not sorted so there is no end... that sucks :) 
+                while (_freqsLog10.ContainsKey(nextFreq))
+                {
+                    
+                }
+                entryIndex = _hotEntries.AddFirst(entry);
             }
+            // Case 2.2: There was already entries with that frequency
             else
             {
-                // Pas ouf
-                entryIndex = _entriesByHits.AddFirst(entry);
+                entryIndex = _hotEntries.AddBefore(entry, freqCount.firstEntryWithHitsIndex);
+                freqCount.firstEntryWithHitsIndex = entryIndex;
+                freqCount.refCount++;
             }
+            
+            freqCount.refCount++;
+            freqCount.firstEntryWithHitsIndex = entryIndex;
 
             return value;
         }
@@ -129,8 +139,8 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     internal TValue GetValue(ref int entryIndex)
     {
-        ref var entryNode = ref _entriesByHits[entryIndex];
-        ref var freqNode = ref CollectionsMarshal.GetValueRefOrNullRef(_freqsLog10, entryNode.value.freqIndex);
+        ref var entryNode = ref _hotEntries[entryIndex];
+        ref var freqNode = ref CollectionsMarshal.GetValueRefOrNullRef(_freqsLog10, entryNode.value.frequency);
         
         Debug.Assert(!Unsafe.IsNullRef(ref freqNode));
         
@@ -140,15 +150,15 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         entryNode.value.lastUsed = Stopwatch.GetTimestamp();
 
         // Refresh frequency if it changed
-        if (roundedFreq != entryNode.value.freqIndex)
+        if (roundedFreq != entryNode.value.frequency)
         {
             // Remove from previous freq bucket
-            ref FreqCount currentFreq = ref CollectionsMarshal.GetValueRefOrAddDefault(_freqsLog10, entryNode.value.freqIndex, out _);
+            ref FreqCount currentFreq = ref CollectionsMarshal.GetValueRefOrAddDefault(_freqsLog10, entryNode.value.frequency, out _);
             currentFreq.refCount--;
             if (currentFreq.refCount == 0)
             {
                 // Empty freq bucket
-                _freqsLog10.Remove(entryNode.value.freqIndex);
+                _freqsLog10.Remove(entryNode.value.frequency);
             }
             else if (currentFreq.firstEntryWithHitsIndex == entryIndex)
             {
@@ -163,7 +173,7 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             // TODO: Move entry to before firstEntryWithHitsIndex
             
             // Update entry with new freq
-            entryNode.value.freqIndex = roundedFreq;
+            entryNode.value.frequency = roundedFreq;
         }
 
         return entryNode.value.value;
@@ -171,7 +181,7 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     private void RemoveFirst()
     {
-        var entry = _entriesByHits[_entriesByHits.FirstIndex];
+        var entry = _hotEntries[_hotEntries.FirstIndex];
 
         Remove(entry.value.key);
     }
@@ -180,12 +190,12 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
     {
         var entryIndex = _perKeyMap[key];
 
-        var entry = _entriesByHits[entryIndex];
+        var entry = _hotEntries[entryIndex];
         _perKeyMap.Remove(entry.value.key);
 
         if (entryIndex >= 0)
         {
-            ref FreqCount freqCount = ref CollectionsMarshal.GetValueRefOrNullRef(_freqsLog10, entry.value.freqIndex);
+            ref FreqCount freqCount = ref CollectionsMarshal.GetValueRefOrNullRef(_freqsLog10, entry.value.frequency);
             
             Debug.Assert(!Unsafe.IsNullRef(ref freqCount));
         
@@ -193,20 +203,20 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             if (freqCount.refCount == 0)
             {
                 // Empty freq bucket
-                _freqsLog10.Remove(entry.value.freqIndex);
+                _freqsLog10.Remove(entry.value.frequency);
             }
             else if (freqCount.firstEntryWithHitsIndex == entryIndex)
             {
                 freqCount.firstEntryWithHitsIndex = entry.after;
             }
 
-            _entriesByHits.Remove(entryIndex);
+            _hotEntries.Remove(entryIndex);
         }
         else
         {
             var probatoryIndex = -entryIndex - 1;
 
-            _probatorySegment.Remove(probatoryIndex);
+            _probatoryEntries.Remove(probatoryIndex);
         }
     }
 
@@ -214,8 +224,8 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
     {
         _freqsLog10.Clear();
         _perKeyMap.Clear();
-        _entriesByHits.Clear();
-        _probatorySegment.Clear();
+        _hotEntries.Clear();
+        _probatoryEntries.Clear();
     }
 
 #pragma warning disable S125
@@ -255,13 +265,13 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         public TKey key;
         public TValue? value;
         public long lastUsed;
-        public int freqIndex;
+        public int frequency;
 
         public Entry(TKey key)
         {
             this.key = key;
             lastUsed = Stopwatch.GetTimestamp();
-            freqIndex = -1;
+            frequency = -1;
             value = default;
         }
     }

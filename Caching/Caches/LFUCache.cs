@@ -272,7 +272,7 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             // Old hits registration get decrement of refcount
             freqNode.value.refCount--;
 
-            // int hitsPlusOneIndex = _freqsLog10.AddAfter(nextFreq, entry.freqIndex);
+            // int hitsPlusOneIndex = _freqsLog10.AddAfter(nextFreq, entry.frequency);
             int hitsPlusOneIndex = _freqsLog10.AddBefore(prevFreq, entry.freqIndex);
             _entriesByHits[entryIndex].value.freqIndex = hitsPlusOneIndex;
 

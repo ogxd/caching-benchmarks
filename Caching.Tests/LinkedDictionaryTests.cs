@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using NUnit.Framework;
 
 namespace Caching.Tests;
@@ -30,5 +31,23 @@ public class LinkedDictionaryTests
         Assert.True(dictionary.ContainsKey(1));
         Assert.False(dictionary.ContainsKey(2));
         Assert.True(dictionary.ContainsKey(3));
+    }
+    
+    [Test]
+    public void Can_Mutate_Ref_Return()
+    {
+        LinkedDictionary<int, (int a, int b)> dictionary = new();
+
+        dictionary.TryAddFirst(0, (0, 0));
+
+        ref var x = ref dictionary.GetValueRefOrNullRef(0);
+        Assert.False(Unsafe.IsNullRef(ref x));
+        x.a = 1;
+        x.b = 2;
+        
+        ref var y = ref dictionary.GetValueRefOrNullRef(0);
+        Assert.False(Unsafe.IsNullRef(ref y));
+        Assert.AreEqual(1, y.a);
+        Assert.AreEqual(2, y.b);
     }
 }

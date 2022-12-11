@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Caching;
@@ -61,7 +62,7 @@ public class LinkedDictionary<K, V> // : IDictionary<K, V>, IReadOnlyDictionary<
         if (!_dictionary.TryGetValue(key, out int listIndex))
             return false;
 
-        value = _list[listIndex].value.value;
+        value = _list[listIndex].value._value;
         return true;
     }
     
@@ -73,8 +74,8 @@ public class LinkedDictionary<K, V> // : IDictionary<K, V>, IReadOnlyDictionary<
         if (!TryGetAfter(key, out Entry entry))
             return false;
 
-        keyAfter = entry.key;
-        valueAfter = entry.value;
+        keyAfter = entry._key;
+        valueAfter = entry._value;
         return true;
     }
     
@@ -101,8 +102,8 @@ public class LinkedDictionary<K, V> // : IDictionary<K, V>, IReadOnlyDictionary<
         if (!TryGetBefore(key, out Entry entry))
             return false;
 
-        keyBefore = entry.key;
-        valueBefore = entry.value;
+        keyBefore = entry._key;
+        valueBefore = entry._value;
         return true;
     }
     
@@ -135,8 +136,8 @@ public class LinkedDictionary<K, V> // : IDictionary<K, V>, IReadOnlyDictionary<
             return false;
 
         var node = _list[_list.FirstIndex].value;
-        key = node.key;
-        value = node.value;
+        key = node._key;
+        value = node._value;
 
         return true;
     }
@@ -150,8 +151,8 @@ public class LinkedDictionary<K, V> // : IDictionary<K, V>, IReadOnlyDictionary<
             return false;
 
         var node = _list[_list.LastIndex].value;
-        key = node.key;
-        value = node.value;
+        key = node._key;
+        value = node._value;
 
         return true;
     }
@@ -167,7 +168,25 @@ public class LinkedDictionary<K, V> // : IDictionary<K, V>, IReadOnlyDictionary<
         return true;
     }
 
+    public ref V GetValueRefOrNullRef(K key)
+    { 
+        if (!_dictionary.TryGetValue(key, out int listIndex))
+            return ref Unsafe.NullRef<V>();
+
+        return ref _list[listIndex].value._value;
+    }
+
     public int Count => _dictionary.Count;
-    
-    internal record struct Entry(K key, V value);
+
+    internal struct Entry
+    {
+        internal K _key;
+        internal V _value;
+
+        public Entry(K key, V value)
+        {
+            _key = key;
+            _value = value;
+        }
+    }
 }
