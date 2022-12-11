@@ -1,4 +1,6 @@
-﻿using System;
+﻿#define PROGRESSIVE
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -10,10 +12,12 @@ public class ProbatoryLFUCache<TKey, TValue> : ProbatoryLFUCache<TKey, TKey, TVa
 {
     public ProbatoryLFUCache(
         int maximumKeyCount,
+        double probatoryScaleFactor = 10,
         IEqualityComparer<TKey> keyComparer = null,
         ICacheObserver cacheObserver = null) : base(
             maximumKeyCount,
             static item => item,
+            probatoryScaleFactor,
             keyComparer,
             cacheObserver)
     { }
@@ -30,31 +34,39 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
     
     private readonly Func<TItem, TKey> _keyFactory;
 
-    private int _maximumKeyCount;
+    private int _maximumEntriesCount;
+    private double _probatoryScaleFactor;
 
     public ProbatoryLFUCache(
-        int maximumKeyCount,
+        int maximumEntriesCount,
         Func<TItem, TKey> keyFactory,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null)
+        double probatoryScaleFactor,
+        IEqualityComparer<TKey> keyComparer,
+        ICacheObserver cacheObserver)
     {
         _keyFactory = keyFactory ?? throw new ArgumentNullException("keyFactory");
         _perKeyMap = new Dictionary<TKey, int>(keyComparer ?? EqualityComparer<TKey>.Default);
         _hotEntries = new IndexBasedLinkedList<Entry>();
         _probatoryEntries = new IndexBasedLinkedList<Entry>();
         _cacheObserver = cacheObserver;
-        _maximumKeyCount = maximumKeyCount;
+        _maximumEntriesCount = maximumEntriesCount;
+        _probatoryScaleFactor = probatoryScaleFactor;
     }
 
-    public int MaxSize { get => _maximumKeyCount; set => _maximumKeyCount = value; }
+    public int MaxSize { get => _maximumEntriesCount; set => _maximumEntriesCount = value; }
 
     public virtual TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
     {
         TKey key = _keyFactory(item);
 
-        while (_hotEntries.Count > _maximumKeyCount)
+        while (_hotEntries.Count > _maximumEntriesCount)
         {
             RemoveFirst();
+        }
+        
+        while (_probatoryEntries.Count > _probatoryScaleFactor * _maximumEntriesCount)
+        {
+            Remove(_probatoryEntries[_probatoryEntries.FirstIndex].value.key);
         }
         
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
@@ -90,9 +102,6 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
             // Copy
             Entry entry = _probatoryEntries[probatoryIndex].value;
-            
-            Debug.Assert(_probatoryEntries[probatoryIndex].used);
-            Debug.Assert(entry != null);
             
             value = entry.value = factory(item);
 
@@ -136,43 +145,49 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
     internal TValue GetValue(ref int entryIndex)
     {
-        //Check();
-        
         ref var entryNode = ref _hotEntries[entryIndex];
 
+        int previousFrequency = entryNode.value.frequency;
+        
         long currentTimestamp = Stopwatch.GetTimestamp();
         int frequency = GetFrequency(entryNode.value.lastUsed, currentTimestamp);
         
-        // Refresh the "last used" timestamp
         entryNode.value.lastUsed = currentTimestamp;
 
-        // Refresh frequency if it changed
-        if (frequency == entryNode.value.frequency)
+        // Do nothing if frequency is unchanged
+        if (frequency == previousFrequency)
         {
             return entryNode.value.value;
         }
         
         // Remove from previous freq bucket
-        var frequencyGroup = _frequencyGroups[entryNode.value.frequency];
+        var frequencyGroup = _frequencyGroups[previousFrequency];
         frequencyGroup.refCount--;
         if (frequencyGroup.refCount == 0)
         {
             // Remove empty frequency group
-            _frequencyGroups.Remove(entryNode.value.frequency);
+            _frequencyGroups.Remove(previousFrequency);
         }
         else if (frequencyGroup.firstEntryWithHitsIndex == entryIndex)
         {
             frequencyGroup.firstEntryWithHitsIndex = entryNode.after;
         }
-        
-        // Update entry with new frequency
-        entryNode.value.frequency = frequency;
 
+#if PROGRESSIVE
+        // Progressive move (optional)
+        if (frequency > previousFrequency)
+            frequency += 1;
+        else
+            frequency -= 1;
+#endif
+        
+        entryNode.value.frequency = frequency;
+        
         var entry = entryNode.value;
 
         // Move entry
         _hotEntries.Remove(entryIndex);
-        
+
         // Case A: There was already entries with that frequency
         if (_frequencyGroups.TryGetValue(frequency, out frequencyGroup))
         {
@@ -214,11 +229,11 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
     {
         var entryIndex = _perKeyMap[key];
 
-        var entry = _hotEntries[entryIndex];
-        _perKeyMap.Remove(entry.value.key);
-
         if (entryIndex >= 0)
         {
+            var entry = _hotEntries[entryIndex];
+            _perKeyMap.Remove(entry.value.key);
+            
             FrequencyGroup freqCount = _frequencyGroups[entry.value.frequency];
             
             freqCount.refCount--;
@@ -237,6 +252,9 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         else
         {
             var probatoryIndex = -entryIndex - 1;
+            
+            var entry = _probatoryEntries[probatoryIndex];
+            _perKeyMap.Remove(entry.value.key);
 
             _probatoryEntries.Remove(probatoryIndex);
         }
@@ -250,7 +268,7 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         _probatoryEntries.Clear();
     }
 
-    internal class Entry
+    internal struct Entry
     {
         public TKey key;
         public TValue? value;
