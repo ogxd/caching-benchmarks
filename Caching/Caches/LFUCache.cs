@@ -26,45 +26,53 @@ public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
         Observer?.CountCacheCall();
 
-        while (_perKeyMap.Count > MaximumEntriesCount)
+        TValue value;
+
+        if (exists)
+        {
+            return GetValue(ref entryIndex);
+        }
+        
+        while (_entriesByHits.Count >= MaximumEntriesCount)
         {
             RemoveFirst();
         }
-
-        TValue value;
-
-        if (!exists)
+        
+        value = factory(key);
+        Observer?.CountCacheMiss();
+        
+        Entry entry = new(key, value);
+        
+        if (_freqsLog10.Count == 0)
         {
-            value = factory(key);
-
-            Entry entry = new(key, value);
             entryIndex = _entriesByHits.AddFirst(entry);
-
-            var recencyIndex = _entriesByRecency.AddLast(entryIndex);
-            _entriesByHits[_entriesByHits.FirstIndex].value.recency = recencyIndex;
-
-            if (_freqsLog10.Count == 0)
+            
+            FreqCount firstHit = new();
+            firstHit.freqLog10 = 0; // Aproximation
+            firstHit.refCount = 1;
+            firstHit.firstEntryWithHitsIndex = entryIndex;
+            _freqsLog10.AddFirst(firstHit);
+        }
+        else
+        {
+            if (_freqsLog10.Count > 1)
             {
-                FreqCount firstHit = new();
-                firstHit.freqLog10 = 0; // Aproximation
-                firstHit.refCount = 1;
-                firstHit.firstEntryWithHitsIndex = entryIndex;
-                _freqsLog10.AddFirst(firstHit);
+                entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[_freqsLog10[_freqsLog10.FirstIndex].after].value.firstEntryWithHitsIndex);
             }
             else
             {
-                _freqsLog10[_freqsLog10.FirstIndex].value.refCount++;
+                entryIndex = _entriesByHits.AddFirst(entry);
                 _freqsLog10[_freqsLog10.FirstIndex].value.firstEntryWithHitsIndex = entryIndex;
             }
-
-            _entriesByHits[_entriesByHits.FirstIndex].value.freqIndex = _freqsLog10.FirstIndex;
-
-            Observer?.CountCacheMiss();
-
-            return value;
+            _freqsLog10[_freqsLog10.FirstIndex].value.refCount++;
         }
-            
-        return GetValue(ref entryIndex);
+
+        _entriesByHits[entryIndex].value.freqIndex = _freqsLog10.FirstIndex;
+        
+        var recencyIndex = _entriesByRecency.AddLast(entryIndex);
+        _entriesByHits[entryIndex].value.recency = recencyIndex;
+
+        return value;
     }
 
     internal int GetFrequency(long lastUsedTimestamp)
