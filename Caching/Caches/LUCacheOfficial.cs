@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace Caching.Caches;
@@ -56,9 +54,6 @@ public class LUCacheOfficial<TKey, TValue> : ICache<TKey, TValue>
 
     public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
-        Console.WriteLine($"Request key:{key}");
-        Console.WriteLine(string.Join(", ", _cache.OrderBy(x => x.Key).Select(x => $"{x.Key}/{x.Value.count}"))); 
-        
         Observer.CountCacheCall();
 
         if (_cache.TryGetValue(key, out var tuple))
@@ -74,7 +69,6 @@ public class LUCacheOfficial<TKey, TValue> : ICache<TKey, TValue>
         if (_cache.Count >= MaximumEntriesCount)
         {
             var minList = _countMap[_minCount];
-            Console.WriteLine($"Remove key:{minList.Last!.Value} (counts:{_minCount})");
             _cache.Remove(minList.Last!.Value);
             minList.RemoveLast();
         }
