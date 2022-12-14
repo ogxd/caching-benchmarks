@@ -13,23 +13,11 @@ public record struct StackIndex
 
 public class LIRSCache<TKey, TValue> : ICache<TKey, TValue>
 {
-    private readonly ICacheObserver _cacheObserver;
-
     private readonly Dictionary<TKey, StackIndex> _perKeyMap = new();
     private readonly IndexBasedLinkedList<Entry> _S = new();
     private readonly IndexBasedLinkedList<Entry> _Q = new();
 
     private readonly Func<TKey, TKey> _keyFactory;
-
-    private int _maximumKeyCount;
-
-    public LIRSCache(
-        int maximumKeyCount,
-        ICacheObserver cacheObserver)
-    {
-        _cacheObserver = cacheObserver;
-        _maximumKeyCount = maximumKeyCount;
-    }
 
     private int targetL;
     private int targetHr;
@@ -38,13 +26,17 @@ public class LIRSCache<TKey, TValue> : ICache<TKey, TValue>
     private int Hr;
     private int Hn;
     private int Hd;
+    
+    public string Name { get; set; }
 
-    public int MaximumEntriesCount { get => _maximumKeyCount; set => _maximumKeyCount = value; }
+    public int MaximumEntriesCount { get; set; }
+    
+    public ICacheObserver Observer { get; set; }
 
     public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
         ref StackIndex entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
-        _cacheObserver?.CountCacheCall();
+        Observer?.CountCacheCall();
 
         TValue value;
 
@@ -60,7 +52,7 @@ public class LIRSCache<TKey, TValue> : ICache<TKey, TValue>
                     _S[entryIndex.indexS].value.value = factory(key);
                     _S[entryIndex.indexS].value.isResident = true;
 
-                    _cacheObserver?.CountCacheMiss();
+                    Observer?.CountCacheMiss();
                 }
                 entryIndex.indexS = _S.MoveToLast(entryIndex.indexS);
 
@@ -109,7 +101,7 @@ public class LIRSCache<TKey, TValue> : ICache<TKey, TValue>
             entryIndex.indexS = _S.AddLast(entry);
             entryIndex.indexQ = _Q.AddLast(entry);
 
-            _cacheObserver?.CountCacheMiss();
+            Observer?.CountCacheMiss();
         }
 
         return value;
@@ -125,7 +117,7 @@ public class LIRSCache<TKey, TValue> : ICache<TKey, TValue>
             Evict(ref x);
         }
 
-        while (_Q.Count > 0.1 * _maximumKeyCount)
+        while (_Q.Count > 1d * MaximumEntriesCount) // Shall it be 0.1 or 1?
         {
             // Evict bottom of Q
             ref StackIndex x = ref CollectionsMarshal.GetValueRefOrNullRef(_perKeyMap, _Q[_Q.FirstIndex].value.key);

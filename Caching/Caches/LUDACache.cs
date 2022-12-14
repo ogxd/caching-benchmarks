@@ -12,28 +12,22 @@ namespace Caching;
 /// <typeparam name="TValue"></typeparam>
 public class LUDACache<TKey, TValue> : ICache<TKey, TValue>
 {
-    private readonly ICacheObserver _cacheObserver;
-
     private readonly Dictionary<TKey, int> _perKeyMap = new();
     private readonly IndexBasedLinkedList<Entry> _entriesByHits = new();
     private readonly IndexBasedLinkedList<HitsCount> _hitsCount = new();
 
-    private int _maximumKeyCount;
-
-    public LUDACache(int maximumKeyCount, ICacheObserver cacheObserver)
-    {
-        _cacheObserver = cacheObserver;
-        _maximumKeyCount = maximumKeyCount;
-    }
-
-    public int MaximumEntriesCount { get => _maximumKeyCount; set => _maximumKeyCount = value; }
-
+    public string Name { get; set; }
+    
+    public int MaximumEntriesCount { get; set; }
+    
+    public ICacheObserver Observer { get; set; }
+    
     public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
-        _cacheObserver?.CountCacheCall();
+        Observer?.CountCacheCall();
 
-        while (_perKeyMap.Count > _maximumKeyCount)
+        while (_perKeyMap.Count > MaximumEntriesCount)
         {
             RemoveFirst();
         }
@@ -43,7 +37,7 @@ public class LUDACache<TKey, TValue> : ICache<TKey, TValue>
         if (!exists)
         {
             value = factory(key);
-            _cacheObserver?.CountCacheMiss();
+            Observer?.CountCacheMiss();
             
             Entry entry = new(key, value);
 

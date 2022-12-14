@@ -5,22 +5,21 @@ namespace Caching.Caches;
 
 public class LFUCacheOfficial<TKey, TValue> : ICache<TKey, TValue>
 {
-    private readonly ICacheObserver _cacheObserver;
-    
     private Dictionary<TKey, (LinkedListNode<TKey> node, TValue value, int count)> _cache;
     private Dictionary<int, LinkedList<TKey>> _countMap;
 
     private int _minCount;
-    private int _capacity;
     
-    public int MaximumEntriesCount { get => _capacity; set => _capacity = value; }
-
-    public LFUCacheOfficial(int capacity, ICacheObserver cacheObserver = null)
+    public string Name { get; set; }
+    
+    public int MaximumEntriesCount { get; set; }
+    
+    public ICacheObserver Observer { get; set; }
+   
+    public LFUCacheOfficial()
     {
-        _capacity = capacity;
         _countMap = new Dictionary<int, LinkedList<TKey>> { [1] = new() };
-        _cache = new Dictionary<TKey, (LinkedListNode<TKey> node, TValue value, int count)>(capacity);
-        _cacheObserver = cacheObserver;
+        _cache = new Dictionary<TKey, (LinkedListNode<TKey> node, TValue value, int count)>();
     }
 
     private void PromoteItem(TKey key, TValue value, int count, LinkedListNode<TKey> node)
@@ -41,7 +40,7 @@ public class LFUCacheOfficial<TKey, TValue> : ICache<TKey, TValue>
 
     public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
-        _cacheObserver.CountCacheCall();
+        Observer.CountCacheCall();
 
         if (_cache.ContainsKey(key))
         {
@@ -51,9 +50,9 @@ public class LFUCacheOfficial<TKey, TValue> : ICache<TKey, TValue>
         }
 
         TValue value = factory(key);
-        _cacheObserver.CountCacheMiss();
+        Observer.CountCacheMiss();
 
-        if (_cache.Count >= _capacity)
+        if (_cache.Count >= MaximumEntriesCount)
         {
             var minList = _countMap[_minCount];
             _cache.Remove(minList.Last!.Value);
@@ -69,6 +68,6 @@ public class LFUCacheOfficial<TKey, TValue> : ICache<TKey, TValue>
     public void Clear()
     {
         _countMap = new Dictionary<int, LinkedList<TKey>> { [1] = new() };
-        _cache = new Dictionary<TKey, (LinkedListNode<TKey> node, TValue value, int count)>(_capacity);
+        _cache = new Dictionary<TKey, (LinkedListNode<TKey> node, TValue value, int count)>();
     }
 }

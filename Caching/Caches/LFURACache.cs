@@ -4,12 +4,6 @@ namespace Caching;
 
 public class LFURACache<TKey, TValue> : LFUCache<TKey, TValue>
 {
-    public LFURACache(int maximumKeyCount, ICacheObserver cacheObserver) 
-        : base(maximumKeyCount, cacheObserver)
-    {
-
-    }
-
     public override TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
         if (_entriesByRecency.Count > 0)

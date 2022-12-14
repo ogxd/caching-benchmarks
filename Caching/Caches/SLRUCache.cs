@@ -22,37 +22,28 @@ public record struct Index
 /// <typeparam name="TValue"></typeparam>
 public class SLRUCache<TKey, TValue> : ICache<TKey, TValue>
 {
-    private readonly ICacheObserver _cacheObserver;
-
     private readonly Dictionary<TKey, Index> _perKeyMap = new();
     private readonly IndexBasedLinkedList<Entry> _probationarySegment = new();
     private readonly IndexBasedLinkedList<Entry> _protectedSegment = new();
 
-    private readonly double _midPoint;
-    private int _maximumKeyCount;
+    public string Name { get; set; }
+    
+    public int MaximumEntriesCount { get; set; }
 
-    public SLRUCache(
-        int maximumKeyCount,
-        double midPoint,
-        ICacheObserver cacheObserver)
-    {
-        _cacheObserver = cacheObserver;
-        _maximumKeyCount = maximumKeyCount;
-        _midPoint = midPoint;
-    }
-
-    public int MaximumEntriesCount { get => _maximumKeyCount; set => _maximumKeyCount = value; }
+    public double MidPoint { get; set; }
+    
+    public ICacheObserver Observer { get; set; }
 
     public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
         ref Index index = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
-        _cacheObserver?.CountCacheCall();
+        Observer?.CountCacheCall();
 
         TValue value;
 
         if (!exists)
         {
-            while (_probationarySegment.Count > _midPoint * _maximumKeyCount)
+            while (_probationarySegment.Count > MidPoint * MaximumEntriesCount)
             {
                 RemoveFirst();
             }
@@ -63,37 +54,34 @@ public class SLRUCache<TKey, TValue> : ICache<TKey, TValue>
             index.index = _probationarySegment.AddLast(entry);
             index.isProtected = false;
 
-            _cacheObserver?.CountCacheMiss();
+            Observer?.CountCacheMiss();
 
             return value;
         }
-        else
+
+        if (index.isProtected)
         {
-            if (index.isProtected)
-            {
-                index.index = _protectedSegment.MoveToLast(index.index);
+            index.index = _protectedSegment.MoveToLast(index.index);
 
-                return _protectedSegment[index.index].value.value;
-            }
-            else
-            {
-                Entry entry = _probationarySegment[index.index].value;
-                _probationarySegment.Remove(index.index);
-                if (_protectedSegment.Count >= (1d - _midPoint) * _maximumKeyCount)
-                {
-                    Entry downgrade = _protectedSegment[_protectedSegment.FirstIndex].value;
-                    _protectedSegment.Remove(_protectedSegment.FirstIndex);
-                    int downgradeIndex = _probationarySegment.AddLast(downgrade);
-                    ref Index dow = ref CollectionsMarshal.GetValueRefOrNullRef(_perKeyMap, downgrade.key);
-                    dow.index = downgradeIndex;
-                    dow.isProtected = false;
-                }
-                index.index = _protectedSegment.AddLast(entry);
-                index.isProtected = true;
-
-                return entry.value;
-            }
+            return _protectedSegment[index.index].value.value;
         }
+
+        
+        Entry pentry = _probationarySegment[index.index].value;
+        _probationarySegment.Remove(index.index);
+        if (_protectedSegment.Count >= (1d - MidPoint) * MaximumEntriesCount)
+        {
+            Entry downgrade = _protectedSegment[_protectedSegment.FirstIndex].value;
+            _protectedSegment.Remove(_protectedSegment.FirstIndex);
+            int downgradeIndex = _probationarySegment.AddLast(downgrade);
+            ref Index dow = ref CollectionsMarshal.GetValueRefOrNullRef(_perKeyMap, downgrade.key);
+            dow.index = downgradeIndex;
+            dow.isProtected = false;
+        }
+        index.index = _protectedSegment.AddLast(pentry);
+        index.isProtected = true;
+
+        return pentry.value;
     }
 
     private void RemoveFirst()

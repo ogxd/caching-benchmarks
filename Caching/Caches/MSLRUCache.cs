@@ -14,37 +14,44 @@ namespace Caching;
 // Multi Segment Least Recently Used
 public class MSLRUCache<TKey, TValue> : ICache<TKey, TValue>
 {
-    private readonly ICacheObserver _cacheObserver;
-
     private readonly Dictionary<TKey, (int segment, int index)> _perKeyMap = new();
-    private readonly IndexBasedLinkedList<Entry>[] _entries;
+    private IndexBasedLinkedList<Entry>[] _entries;
 
     private int _maximumKeyCount;
-    private readonly int _segmentsCount;
+    private int _segmentsCount;
 
-    public MSLRUCache(
-        int maximumKeyCount,
-        int segmentsCount,
-        ICacheObserver cacheObserver)
+    public string Name { get; set; }
+    
+    // Rounding to have even segments
+    public int MaximumEntriesCount
     {
-        _cacheObserver = cacheObserver;
-        _segmentsCount = segmentsCount;
-        MaximumEntriesCount = maximumKeyCount;
+        get => _maximumKeyCount;
+        set => _maximumKeyCount = _segmentsCount * value / _segmentsCount;
+    }
 
-        _entries = new IndexBasedLinkedList<Entry>[segmentsCount];
-        for (int i = 0; i < segmentsCount; i++)
+    public int SegmentsCount
+    {
+        get => _segmentsCount;
+        set
         {
-            _entries[i] = new IndexBasedLinkedList<Entry>(_maximumKeyCount / _segmentsCount);
+            _segmentsCount = value;
+            
+            _entries = new IndexBasedLinkedList<Entry>[_segmentsCount];
+            for (int i = 0; i < _segmentsCount; i++)
+            {
+                _entries[i] = new IndexBasedLinkedList<Entry>(_maximumKeyCount / _segmentsCount);
+            }
+
+            MaximumEntriesCount = _maximumKeyCount;
         }
     }
 
-    // Rounding to have even segments
-    public int MaximumEntriesCount { get => _maximumKeyCount; set => _maximumKeyCount = _segmentsCount * value / _segmentsCount; }
-
+    public ICacheObserver Observer { get; set; }
+    
     public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
         ref var entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
-        _cacheObserver?.CountCacheCall();
+        Observer?.CountCacheCall();
 
         TValue value;
 
@@ -59,7 +66,7 @@ public class MSLRUCache<TKey, TValue> : ICache<TKey, TValue>
             entryIndex.index = _entries[0].AddLast(entry);
             entryIndex.segment = 0;
 
-            _cacheObserver?.CountCacheMiss();
+            Observer?.CountCacheMiss();
 
             return value;
         }

@@ -7,8 +7,6 @@ namespace Caching;
 
 public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
 {
-    private readonly ICacheObserver _cacheObserver;
-
     private readonly Dictionary<TKey, int> _perKeyMap = new();
     private readonly IndexBasedLinkedList<Entry> _entriesByHits= new();
     private readonly IndexBasedLinkedList<FreqCount> _freqsLog10= new();
@@ -16,25 +14,19 @@ public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
     // Only used for LFURA
     // Index of entry in entries by hits list, ordered by recency
     internal readonly IndexBasedLinkedList<int> _entriesByRecency = new();
+
+    public string Name { get; set; }
     
-    private int _maximumKeyCount;
-
-    public LFUCache(
-        int maximumKeyCount,
-        ICacheObserver cacheObserver)
-    {
-        _cacheObserver = cacheObserver;
-        _maximumKeyCount = maximumKeyCount;
-    }
-
-    public int MaximumEntriesCount { get => _maximumKeyCount; set => _maximumKeyCount = value; }
-
+    public int MaximumEntriesCount { get; set; }
+    
+    public ICacheObserver Observer { get; set; }
+    
     public virtual TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
-        _cacheObserver?.CountCacheCall();
+        Observer?.CountCacheCall();
 
-        while (_perKeyMap.Count > _maximumKeyCount)
+        while (_perKeyMap.Count > MaximumEntriesCount)
         {
             RemoveFirst();
         }
@@ -67,7 +59,7 @@ public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
 
             _entriesByHits[_entriesByHits.FirstIndex].value.freqIndex = _freqsLog10.FirstIndex;
 
-            _cacheObserver?.CountCacheMiss();
+            Observer?.CountCacheMiss();
 
             return value;
         }

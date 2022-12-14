@@ -13,56 +13,43 @@ namespace Caching;
 /// <typeparam name="TValue"></typeparam>
 public class ProbatoryLFUCache<TKey, TValue> : ICache<TKey, TValue>
 {
-    private readonly ICacheObserver _cacheObserver;
-    
     private readonly Dictionary<TKey, int> _perKeyMap = new();
     private readonly IndexBasedLinkedList<Entry> _hotEntries = new();
     private readonly IndexBasedLinkedList<Entry> _probatoryEntries = new();
     private readonly SortedDictionary<int, FrequencyGroup> _frequencyGroups = new();
     
-    private readonly double _probatoryScaleFactor;
-    private readonly bool _progressiveMove;
-    private readonly bool _promoteToBottom;
-    private int _maximumEntriesCount;
+    public string Name { get; set; }
+    
+    public int MaximumEntriesCount { get; set; }
+    
+    public ICacheObserver Observer { get; set; }
+    
+    public bool ProgressiveMove { get; set; }
+    
+    public bool PromoteToBottom { get; set; }
 
-    public ProbatoryLFUCache(
-        int maximumEntriesCount,
-        double probatoryScaleFactor,
-        bool progressiveMove,
-        bool promoteToBottom,
-        ICacheObserver cacheObserver)
-    {
-        _cacheObserver = cacheObserver;
-        _maximumEntriesCount = maximumEntriesCount;
-        _probatoryScaleFactor = probatoryScaleFactor;
-        _progressiveMove = progressiveMove;
-        _promoteToBottom = promoteToBottom;
-    }
-
-    public int MaximumEntriesCount { get => _maximumEntriesCount; set => _maximumEntriesCount = value; }
+    public double ProbatoryScaleFactor { get; set; } = 1d;
 
     public virtual TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
-        while (_hotEntries.Count > _maximumEntriesCount)
+        while (_hotEntries.Count > MaximumEntriesCount)
         {
             RemoveFirst();
         }
         
-        while (_probatoryEntries.Count > _probatoryScaleFactor * _maximumEntriesCount)
+        while (_probatoryEntries.Count > ProbatoryScaleFactor * MaximumEntriesCount)
         {
             Remove(_probatoryEntries[_probatoryEntries.FirstIndex].value.key);
         }
         
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
-        _cacheObserver?.CountCacheCall();
+        Observer?.CountCacheCall();
 
         TValue value;
 
         // Case 1: Entry did not exist -> It is added as a probatory entry (no value stored)
         if (!exists)
         {
-            _cacheObserver?.CountCacheMiss();
-            
             // Create new probatory entry
             Entry entry = new(key);
             entry.lastUsed = Stopwatch.GetTimestamp();
@@ -71,6 +58,8 @@ public class ProbatoryLFUCache<TKey, TValue> : ICache<TKey, TValue>
             // We use negative index for probatory segments to keep all entrys under the same dictionary (avoid double lookups)
             entryIndex = -_probatoryEntries.AddLast(entry) - 1;
             
+            Observer?.CountCacheMiss();
+            
             // Compute value but not store it as it is likely to be a entry that will never be requested again
             return factory(key);
         }
@@ -78,8 +67,6 @@ public class ProbatoryLFUCache<TKey, TValue> : ICache<TKey, TValue>
         // Case 2: Entry exists but it was probatory -> Move it from probatory entries to hot entries
         if (entryIndex < 0)
         {
-            _cacheObserver?.CountCacheMiss();
-            
             // It was a probatory entry
             // We must not promote it to non probatory
             var probatoryIndex = -entryIndex - 1;
@@ -88,6 +75,7 @@ public class ProbatoryLFUCache<TKey, TValue> : ICache<TKey, TValue>
             Entry entry = _probatoryEntries[probatoryIndex].value;
             
             value = entry.value = factory(key);
+            Observer?.CountCacheMiss();
 
             // Remove from probatory entries
             _probatoryEntries.Remove(probatoryIndex);
@@ -98,7 +86,7 @@ public class ProbatoryLFUCache<TKey, TValue> : ICache<TKey, TValue>
             // If promoteToBottom, move probatory entry to bottom of hot entries, intead of placing it directly
             // in the bucket it would have belonged. This could prevent entries accessed twice in a row from
             // evicting "real" hot entries.
-            if (_promoteToBottom && _frequencyGroups.Count > 0)
+            if (PromoteToBottom && _frequencyGroups.Count > 0)
             {
                 frequency = _frequencyGroups.First().Key;
             }
@@ -165,7 +153,7 @@ public class ProbatoryLFUCache<TKey, TValue> : ICache<TKey, TValue>
             frequencyGroup.firstEntryWithHitsIndex = entryNode.after;
         }
 
-        if (_progressiveMove)
+        if (ProgressiveMove)
         {
             // With this flag enabled entries move from a bucket to another without jumping directly to the target bucket
             // This should help make the cache behaviour smoother
