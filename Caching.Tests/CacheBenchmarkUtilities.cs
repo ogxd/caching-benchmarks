@@ -17,7 +17,7 @@ public class CacheBenchmarkUtilities
     /// <param name="generator">Generator to generate input data for the benchmark</param>
     /// <typeparam name="K"></typeparam>
     /// <typeparam name="V"></typeparam>
-    public static void PlotBenchmarkEfficiency<K, V>(IPlotter plotter, string plotName, IEnumerable<TestCase<K, V>> testCases, Func<K, V> factory, IGenerator<K> generator)
+    public static void PlotBenchmarkEfficiency<K, V>(IPlotter plotter, string plotName, IEnumerable<ICacheBuilder<K, V>> testCases, Func<K, V> factory, IGenerator<K> generator)
     {
         var series = new List<Serie>();
         
@@ -30,47 +30,54 @@ public class CacheBenchmarkUtilities
         plotter.Plot(plotName, "Max cache size", "Efficiency %", series);
     }
 
-    private static Serie BenchmarkEfficiency<K, V>(TestCase<K, V> testCase, Func<K, V> factory, IGenerator<K> generator) 
+    private static Serie BenchmarkEfficiency<K, V>(ICacheBuilder<K, V> testCase, Func<K, V> factory, IGenerator<K> generator) 
     {
         var measurements = new List<(int size, int calls, int misses)>();
 
         int iterations = 10;
 
         Stopwatch sw = Stopwatch.StartNew();
+
+        string name = string.Empty;
         
         for (int i = 1; i <= iterations; i++)
         {
             int size = 1000 * i * i;
 
-            testCase.Cache.Clear();
-            testCase.Cache.MaxSize = size;
+            var observer = new CacheCounter();
+            
+            testCase.WithMaximumEntries(size);
+            testCase.WithObserver(observer);
+            var cache = testCase.Build();
 
+            name = cache.Name;
+            
             generator.Reset();
 
             // Warmup
             for (int j = 0; j < 100_000; j++)
             {
                 K key = generator.Generate();
-                _ = testCase.Cache.GetOrCreate(key, factory);
+                _ = cache.GetOrCreate(key, factory);
             }
 
-            testCase.Counter.Reset();
+            observer.Reset();
 
             for (int j = 0; j < 800_000; j++)
             {
                 K key = generator.Generate();
-                _ = testCase.Cache.GetOrCreate(key, factory);
+                _ = cache.GetOrCreate(key, factory);
             }
 
-            measurements.Add((size, testCase.Counter.CountCalls, testCase.Counter.CountMisses));
+            measurements.Add((size, observer.CountCalls, observer.CountMisses));
         }
 
         sw.Stop();
 
-        Console.WriteLine($"{testCase.Name} in {sw.Elapsed}");
+        Console.WriteLine($"Benchmarked {name} in {sw.Elapsed}");
 
         var points = measurements.Select(x => ((double)x.size, (x.calls == 0) ? 0 : 100d * (x.calls - x.misses) / x.calls)).ToArray();
 
-        return new Serie(testCase.Name, points);
+        return new Serie(name, points);
     }
 }

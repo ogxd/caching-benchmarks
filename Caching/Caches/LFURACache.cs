@@ -1,36 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 
 namespace Caching;
 
-public class LFURACache<TKey, TValue> : LFURACache<TKey, TKey, TValue>
+public class LFURACache<TKey, TValue> : LFUCache<TKey, TValue>
 {
-    public LFURACache(
-        int maximumKeyCount,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null) : base(
-        maximumKeyCount,
-        static item => item,
-        keyComparer,
-        cacheObserver,
-        expiration)
-    { }
-}
-
-public class LFURACache<TItem, TKey, TValue> : LFUCache<TItem, TKey, TValue>
-{
-    public LFURACache(
-        int maximumKeyCount,
-        Func<TItem, TKey> keyFactory,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null) : base(maximumKeyCount, keyFactory, keyComparer, cacheObserver, expiration)
-    {
-
-    }
-
-    public override TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
+    public override TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
         if (_entriesByRecency.Count > 0)
         {
@@ -40,6 +14,6 @@ public class LFURACache<TItem, TKey, TValue> : LFUCache<TItem, TKey, TValue>
             Unpromote(ref leastRecentlyRefreshed);
         }
 
-        return base.GetOrCreate(item, factory);
+        return base.GetOrCreate(key, factory);
     }
 }

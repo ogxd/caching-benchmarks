@@ -8,5 +8,9 @@ public interface ICache<TItem, TValue>
 
     public void Clear();
 
-    public int MaxSize { get; set; }
+    public string Name { get; set; }
+    
+    public int MaximumEntriesCount { get; set; }
+    
+    public ICacheObserver Observer { get; set; }
 }

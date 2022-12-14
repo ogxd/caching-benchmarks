@@ -6,72 +6,58 @@ using System.Runtime.InteropServices;
 
 namespace Caching;
 
-public class MSLRUCache<TKey, TValue> : MSLRUCache<TKey, TKey, TValue>
-{
-    public MSLRUCache(
-        int maximumKeyCount,
-        int segments,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null) : base(
-            maximumKeyCount,
-            segments,
-            static item => item,
-            keyComparer,
-            cacheObserver,
-            expiration)
-    { }
-}
-
+/// <summary>
+/// Eviction Policy: Multi-Segmented Less Recently Used
+/// </summary>
+/// <typeparam name="TKey"></typeparam>
+/// <typeparam name="TValue"></typeparam>
 // Multi Segment Least Recently Used
-public class MSLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
+public class MSLRUCache<TKey, TValue> : ICache<TKey, TValue>
 {
-    private readonly ICacheObserver _cacheObserver;
-
-    private readonly Dictionary<TKey, (int segment, int index)> _perKeyMap;
-    private readonly IndexBasedLinkedList<Entry>[] _entries;
-
-    private readonly Func<TItem, TKey> _keyFactory;
+    private readonly Dictionary<TKey, (int segment, int index)> _perKeyMap = new();
+    private IndexBasedLinkedList<Entry>[] _entries;
 
     private int _maximumKeyCount;
     private int _segmentsCount;
 
-    public MSLRUCache(
-        int maximumKeyCount,
-        int segmentsCount,
-        Func<TItem, TKey> keyFactory,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null)
+    public string Name { get; set; }
+    
+    // Rounding to have even segments
+    public int MaximumEntriesCount
     {
-        _keyFactory = keyFactory ?? throw new ArgumentNullException("keyFactory");
-        _perKeyMap = new Dictionary<TKey, (int segment, int index)>(keyComparer ?? EqualityComparer<TKey>.Default);
-        _cacheObserver = cacheObserver;
-        _segmentsCount = segmentsCount;
-        MaxSize = maximumKeyCount;
+        get => _maximumKeyCount;
+        set => _maximumKeyCount = _segmentsCount * value / _segmentsCount;
+    }
 
-        _entries = new IndexBasedLinkedList<Entry>[segmentsCount];
-        for (int i = 0; i < segmentsCount; i++)
+    public int SegmentsCount
+    {
+        get => _segmentsCount;
+        set
         {
-            _entries[i] = new IndexBasedLinkedList<Entry>(_maximumKeyCount / _segmentsCount);
+            _segmentsCount = value;
+            
+            _entries = new IndexBasedLinkedList<Entry>[_segmentsCount];
+            for (int i = 0; i < _segmentsCount; i++)
+            {
+                _entries[i] = new IndexBasedLinkedList<Entry>(_maximumKeyCount / _segmentsCount);
+            }
+
+            MaximumEntriesCount = _maximumKeyCount;
         }
     }
 
-    // Rounding to have even segments
-    public int MaxSize { get => _maximumKeyCount; set => _maximumKeyCount = _segmentsCount * value / _segmentsCount; }
-
-    public TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
+    public ICacheObserver Observer { get; set; }
+    
+    public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
-        TKey key = _keyFactory(item);
-
         ref var entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
-        _cacheObserver?.CountCacheCall();
+        Observer?.CountCacheCall();
 
         TValue value;
 
         if (!exists)
         {
-            value = factory(item);
+            value = factory(key);
 
             TryRemoveSegmentLRU(0, out var e);
             _perKeyMap.Remove(e.key);
@@ -80,7 +66,7 @@ public class MSLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             entryIndex.index = _entries[0].AddLast(entry);
             entryIndex.segment = 0;
 
-            _cacheObserver?.CountCacheMiss();
+            Observer?.CountCacheMiss();
 
             return value;
         }
@@ -164,19 +150,15 @@ public class MSLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         }
     }
 
-    internal struct Entry
+    private struct Entry
     {
         public TKey key;
         public TValue value;
-        public DateTime insertion;
-        public long lastUsed;
 
         public Entry(TKey key, TValue value)
         {
             this.key = key;
             this.value = value;
-            insertion = DateTime.UtcNow;
-            lastUsed = Stopwatch.GetTimestamp();
         }
     }
 }

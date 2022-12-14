@@ -1,64 +1,33 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Caching;
 
-public class LUDACache<TKey, TValue> : LUDACache<TKey, TKey, TValue>
+/// <summary>
+/// Eviction Policy: Less Used with Dynamic Aging
+/// </summary>
+/// <typeparam name="TKey"></typeparam>
+/// <typeparam name="TValue"></typeparam>
+public class LUDACache<TKey, TValue> : ICache<TKey, TValue>
 {
-    public LUDACache(
-        int maximumKeyCount,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null) : base(
-            maximumKeyCount,
-            static item => item,
-            keyComparer,
-            cacheObserver,
-            expiration)
-    { }
-}
+    private readonly Dictionary<TKey, int> _perKeyMap = new();
+    private readonly IndexBasedLinkedList<Entry> _entriesByHits = new();
+    private readonly IndexBasedLinkedList<HitsCount> _hitsCount = new();
 
-public class LUDACache<TItem, TKey, TValue> : ICache<TItem, TValue>
-{
-    private readonly ICacheObserver _cacheObserver;
-
-    private readonly Dictionary<TKey, int> _perKeyMap;
-    private readonly IndexBasedLinkedList<Entry> _entriesByHits;
-    private readonly IndexBasedLinkedList<HitsCount> _hitsCount;
-
-    private readonly Func<TItem, TKey> _keyFactory;
-
-    private int _maximumKeyCount;
-
-    public LUDACache(
-        int maximumKeyCount,
-        Func<TItem, TKey> keyFactory,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null)
+    public string Name { get; set; }
+    
+    public int MaximumEntriesCount { get; set; }
+    
+    public ICacheObserver Observer { get; set; }
+    
+    public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
-        _keyFactory = keyFactory ?? throw new ArgumentNullException("keyFactory");
-        _perKeyMap = new Dictionary<TKey, int>(keyComparer ?? EqualityComparer<TKey>.Default);
-        _entriesByHits = new IndexBasedLinkedList<Entry>();
-        _hitsCount = new IndexBasedLinkedList<HitsCount>();
-        _cacheObserver = cacheObserver;
-        _maximumKeyCount = maximumKeyCount;
-    }
-
-    public int MaxSize { get => _maximumKeyCount; set => _maximumKeyCount = value; }
-
-    public TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
-    {
-        TKey key = _keyFactory(item);
-
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
-        _cacheObserver?.CountCacheCall();
+        Observer?.CountCacheCall();
 
-        while (_perKeyMap.Count > _maximumKeyCount)
+        while (_perKeyMap.Count > MaximumEntriesCount)
         {
             RemoveFirst();
         }
@@ -67,8 +36,9 @@ public class LUDACache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
         if (!exists)
         {
-            value = factory(item);
-
+            value = factory(key);
+            Observer?.CountCacheMiss();
+            
             Entry entry = new(key, value);
 
             if (_hitsCount.Count == 0)
@@ -109,9 +79,7 @@ public class LUDACache<TItem, TKey, TValue> : ICache<TItem, TValue>
                     _entriesByHits[entryIndex].value.hitsCountIndex = _hitsCount[_hitsCount.FirstIndex].after;
                 }
             }
-
-            _cacheObserver?.CountCacheMiss();
-
+            
             return value;
         }
         else
@@ -203,10 +171,6 @@ public class LUDACache<TItem, TKey, TValue> : ICache<TItem, TValue>
                 }
             }
 
-            //Debug.Assert(CheckThatFirstEntryIsFirst());
-            //Debug.Assert(CheckHitsCount());
-            //Debug.Assert(CheckOrder());
-
             return value;
         }
     }
@@ -238,111 +202,21 @@ public class LUDACache<TItem, TKey, TValue> : ICache<TItem, TValue>
         _entriesByHits.Clear();
     }
 
-    private bool CheckHitsCount()
-    {
-        var hitsCount = _hitsCount.ToArray();
-        for (int i = 0; i < hitsCount.Length - 1; i++)
-        {
-            // Check order
-            if (hitsCount[i].hits >= hitsCount[i + 1].hits)
-                return false;
-
-            // Check pointer
-            if (hitsCount[i].firstEntryWithHitsIndex == hitsCount[i + 1].firstEntryWithHitsIndex)
-                return false;
-        }
-
-        return true;
-    }
-
-    private bool CheckThatFirstEntryIsFirst()
-    {
-        var hitsCount = _hitsCount.ToArray();
-        for (int i = 0; i < hitsCount.Length; i++)
-        {
-            int firstEntryWithHitsIndex = hitsCount[i].firstEntryWithHitsIndex;
-
-            var entry = _entriesByHits[firstEntryWithHitsIndex];
-            int before = entry.before;
-
-            if (before != -1)
-            {
-                var entryBefore = _entriesByHits[before];
-
-                if (entry.value.hitsCountIndex == entryBefore.value.hitsCountIndex)
-                    return false;
-            }
-        }
-
-        return true;
-    }
-
-
-    private bool CheckOrder()
-    {
-        var entries = _entriesByHits.ToArray();
-        var hitsCount = _hitsCount.ToArray();
-        for (int i = 0; i < entries.Length - 1; i++)
-        {
-            if (_hitsCount[entries[i].hitsCountIndex].value.hits > _hitsCount[entries[i + 1].hitsCountIndex].value.hits)
-                return false;
-
-            if (_hitsCount[entries[i].hitsCountIndex].value.refCount <= 0)
-                return false;
-        }
-
-        return true;
-    }
-
-    //   A  B  C D E F G H I J K L M N O P Q
-    // 123 42 12 7 5 5 3 3 2 2 1 1 1 1 1 1 1
-
-    // Get O
-    //                        v--------|
-    //   A  B  C D E F G H I J K L M N O P Q
-    // 123 42 12 7 5 5 3 3 2 2 1 1 1 1 1 1 1
-
-    // Get R
-    //                                       v
-    //   A  B  C D E F G H I J O K L M N P Q R
-    // 123 42 12 7 5 5 3 3 2 2 2 1 1 1 1 1 1 1
-
-    // Get R
-    //                                       v
-    //   A  B  C D E F G H I J O K L M N P Q R
-    // 123 42 12 7 5 5 3 3 2 2 2 1 1 1 1 1 1 1
-    //   |  |  | |   |   |     |             |
-    // 123 42 12 7   5   3     2             1  
-    //   1  1  1 1   2   2     3             7
-
-    // Get N
-    //                                 |
-    //   A  B  C D E F G H I J O K L M N P Q R
-    // 123 42 12 7 5 5 3 3 2 2 2 1 1 1 1 1 1 1
-    //   |  |  | |   |   |     |             |
-    // 123 42 12 7   5   3     2             1  
-    //   1  1  1 1   2   2     3             7
-
-
-    internal struct Entry
+    private struct Entry
     {
         public TKey key;
         public TValue value;
-        public DateTime insertion;
         public int hitsCountIndex;
-        //public int hits;
 
         public Entry(TKey key, TValue value)
         {
             this.key = key;
             this.value = value;
-            insertion = DateTime.UtcNow;
-            //hits = 1;
             hitsCountIndex = -1;
         }
     }
 
-    internal record struct HitsCount
+    private record struct HitsCount
     {
         public int firstEntryWithHitsIndex;
         public int refCount;
