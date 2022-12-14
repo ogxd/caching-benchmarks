@@ -21,6 +21,8 @@ public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
     
     public ICacheObserver Observer { get; set; }
     
+    public bool InsertStartOfFrequencyBucket { get; set; }
+    
     public virtual TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
@@ -42,11 +44,11 @@ public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
         Observer?.CountCacheMiss();
         
         Entry entry = new(key, value);
-        
+
         if (_freqsLog10.Count == 0)
         {
             entryIndex = _entriesByHits.AddFirst(entry);
-            
+        
             FreqCount firstHit = new();
             firstHit.freqLog10 = 0; // Aproximation
             firstHit.refCount = 1;
@@ -55,20 +57,21 @@ public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
         }
         else
         {
-            if (_freqsLog10.Count > 1)
+            ref var freqNode = ref _freqsLog10[_freqsLog10.FirstIndex];
+            if (!InsertStartOfFrequencyBucket && freqNode.after != -1)
             {
-                entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[_freqsLog10[_freqsLog10.FirstIndex].after].value.firstEntryWithHitsIndex);
+                entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[freqNode.after].value.firstEntryWithHitsIndex);
             }
             else
             {
                 entryIndex = _entriesByHits.AddFirst(entry);
-                _freqsLog10[_freqsLog10.FirstIndex].value.firstEntryWithHitsIndex = entryIndex;
+                freqNode.value.firstEntryWithHitsIndex = entryIndex;
             }
-            _freqsLog10[_freqsLog10.FirstIndex].value.refCount++;
+            freqNode.value.refCount++;
         }
 
         _entriesByHits[entryIndex].value.freqIndex = _freqsLog10.FirstIndex;
-        
+    
         var recencyIndex = _entriesByRecency.AddLast(entryIndex);
         _entriesByHits[entryIndex].value.recency = recencyIndex;
 
