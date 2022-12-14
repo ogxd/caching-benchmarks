@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace Caching;
@@ -24,44 +25,58 @@ public class LUCache<TKey, TValue> : ICache<TKey, TValue>
     
     public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
+        Console.WriteLine($"Request key:{key}");
+        Console.WriteLine(string.Join(", ", _perKeyMap.OrderBy(x => x.Key).Select(x => $"{x.Key}/{_hitsCount[_entriesByHits[x.Value].value.hitsCountIndex].value.hits}"))); 
+
+        if (key is int k && k == 0)
+        {
+            Console.WriteLine("");
+        }
+        
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
         Observer?.CountCacheCall();
 
-        while (_perKeyMap.Count > MaximumEntriesCount)
+        TValue value;
+
+        if (exists)
+        {
+            return Promote(entryIndex);
+        }
+        
+        while (_entriesByHits.Count >= MaximumEntriesCount)
         {
             RemoveFirst();
         }
+            
+        value = factory(key);
+        Observer?.CountCacheMiss();
 
-        TValue value;
+        Entry entry = new(key, value);
+        entryIndex = _entriesByHits.AddFirst(entry);
 
-        if (!exists)
+        if (_hitsCount.Count == 0
+            || _hitsCount[_hitsCount.FirstIndex].Value.hits > 1)
         {
-            value = factory(key);
-            Observer?.CountCacheMiss();
-
-            Entry entry = new(key, value);
-            entryIndex = _entriesByHits.AddFirst(entry);
-
-            if (_hitsCount.Count == 0
-                || _hitsCount[_hitsCount.FirstIndex].Value.hits > 1)
-            {
-                HitsCount firstHit = new();
-                firstHit.hits = 1;
-                firstHit.refCount = 1;
-                firstHit.firstEntryWithHitsIndex = entryIndex;
-                _hitsCount.AddFirst(firstHit);
-            }
-            else
-            {
-                _hitsCount[_hitsCount.FirstIndex].value.refCount++;
-                _hitsCount[_hitsCount.FirstIndex].value.firstEntryWithHitsIndex = entryIndex;
-            }
-
-            _entriesByHits[_entriesByHits.FirstIndex].value.hitsCountIndex = _hitsCount.FirstIndex;
-
-            return value;
+            HitsCount firstHit = new();
+            firstHit.hits = 1;
+            firstHit.refCount = 1;
+            firstHit.firstEntryWithHitsIndex = entryIndex;
+            _hitsCount.AddFirst(firstHit);
+        }
+        else
+        {
+            _hitsCount[_hitsCount.FirstIndex].value.refCount++;
+            _hitsCount[_hitsCount.FirstIndex].value.firstEntryWithHitsIndex = entryIndex;
         }
 
+        _entriesByHits[_entriesByHits.FirstIndex].value.hitsCountIndex = _hitsCount.FirstIndex;
+
+        return value;
+    }
+
+    private TValue Promote(int entryIndex)
+    {
+        TValue value;
         ref var entryNode = ref _entriesByHits[entryIndex];
         ref var hitsCountNode = ref _hitsCount[entryNode.value.hitsCountIndex];
 
@@ -157,6 +172,9 @@ public class LUCache<TKey, TValue> : ICache<TKey, TValue>
         var entry = _entriesByHits[_entriesByHits.FirstIndex];
         _perKeyMap.Remove(entry.value.key);
         ref var hitsCount = ref _hitsCount[entry.value.hitsCountIndex];
+        
+        Console.WriteLine($"Remove key:{entry.value.key} (counts:{hitsCount.value.hits})");
+        
         hitsCount.value.refCount--;
         if (hitsCount.value.refCount == 0)
         {

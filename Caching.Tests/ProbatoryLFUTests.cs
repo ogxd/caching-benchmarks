@@ -1,4 +1,6 @@
+using System;
 using System.Threading;
+using Caching.Caches;
 using NUnit.Framework;
 
 namespace Caching.Tests;
@@ -10,7 +12,7 @@ public class ProbatoryLFUTests
     {
         CacheCounter counter = new();
         
-        ProbatoryLFUCache<int, int> cache = new();
+        PLFUCache<int, int> cache = new();
         cache.MaximumEntriesCount = 100;
         cache.Observer = counter;
 
@@ -32,5 +34,39 @@ public class ProbatoryLFUTests
         // This time it shouldn't leat to a cache miss
         Assert.AreEqual(2, counter.CountMisses);
         Assert.AreEqual(3, counter.CountCalls);
+    }
+    
+    [Test]
+    public void COfficial()
+    {
+        CacheCounter counter = new();
+        
+        //LUCache<int, int> cache = new();
+        LUCacheOfficial<int, int> cache = new();
+        cache.MaximumEntriesCount = 5;
+        cache.Observer = counter;
+
+        Random rnd = new(0);
+        for (int i = 0; i < 20; i++)
+        {
+            cache.GetOrCreate(rnd.Next(0, 8), j => j);
+        }
+    }
+    
+    [Test]
+    public void Custom()
+    {
+        CacheCounter counter = new();
+        
+        LUCache<int, int> cache = new();
+        //LUCacheOfficial<int, int> cache = new();
+        cache.MaximumEntriesCount = 5;
+        cache.Observer = counter;
+
+        Random rnd = new(0);
+        for (int i = 0; i < 20; i++)
+        {
+            cache.GetOrCreate(rnd.Next(0, 8), j => j);
+        }
     }
 }

@@ -11,7 +11,7 @@ namespace Caching;
 /// </summary>
 /// <typeparam name="TKey"></typeparam>
 /// <typeparam name="TValue"></typeparam>
-public class ProbatoryLFUCache<TKey, TValue> : ICache<TKey, TValue>
+public class PLFUCache<TKey, TValue> : ICache<TKey, TValue>
 {
     private readonly Dictionary<TKey, int> _perKeyMap = new();
     private readonly IndexBasedLinkedList<Entry> _hotEntries = new();

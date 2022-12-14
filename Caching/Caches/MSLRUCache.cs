@@ -18,7 +18,7 @@ public class MSLRUCache<TKey, TValue> : ICache<TKey, TValue>
     private IndexBasedLinkedList<Entry>[] _entries;
 
     private int _maximumKeyCount;
-    private int _segmentsCount;
+    private int _segmentsCount = 3;
 
     public string Name { get; set; }
     
