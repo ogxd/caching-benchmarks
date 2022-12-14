@@ -10,7 +10,7 @@ public class ProbatoryLFUTests
     {
         CacheCounter counter = new();
         
-        ProbatoryLFUCache<int, int> cache = new(100, cacheObserver: counter);
+        ProbatoryLFUCache<int, int> cache = new(100, 1, true, true, cacheObserver: counter);
 
         Assert.AreEqual(0, cache.GetOrCreate(0, x => x));
         

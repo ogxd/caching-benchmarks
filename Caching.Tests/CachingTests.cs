@@ -16,14 +16,14 @@ public class CachingTests
     private static IEnumerable<TestCase<long, long>> Caches()
     {
         CacheCounter counter;
-        yield return new ("LRU", new LRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("LRU", new LRUCache<long, long>(CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         // yield return new ("SLRU", new SLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
         // yield return new ("MSLRU", new MSLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 5, cacheObserver: counter = new CacheCounter()), counter);
         // yield return new ("Naive LFU", new NaiveLFUCache<long, long>(CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         //yield return new ("LU", new LUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         //yield return new ("LUDA", new LUDACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
-        yield return new ("LFU", new LFUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
-        yield return new ("Probatory LFU", new ProbatoryLFUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("LFU", new LFUCache<long, long>(CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
+        yield return new ("Probatory LFU", new ProbatoryLFUCache<long, long>(CACHE_SIZE, 10, true, true, cacheObserver: counter = new CacheCounter()), counter);
         //yield return new ("LFURA", new LFURACache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter = new CacheCounter()), counter);
         //yield return new ("LIRS", new LIRSCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter = new CacheCounter()), counter);
     }
@@ -84,9 +84,8 @@ public class CachingTests
     
     [Test]
     [NonParallelizable]
-    public async Task P1_LRU_VS_LU()
+    public async Task P1_LRU_Scan_Resistance_Problem()
     {
-        
         var plotter = new LiveCharts2Plotter();
         var simulations = new [] {
             new SwitchableGenerator<long>(100_000, false, new SparseLongGenerator(50_000), new SparseLongGenerator(UInt32.MaxValue))
@@ -95,7 +94,82 @@ public class CachingTests
         var counter = new CacheCounter();
         
         var caches = new [] {
-            new TestCase<long, long>("LRU", new LRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 1.0d, cacheObserver: counter), counter),
+            new TestCase<long, long>("LRU", new LRUCache<long, long>(CACHE_SIZE, cacheObserver: counter), counter),
+            new TestCase<long, long>("SLRU 0.1", new SLRUCache<long, long>(CACHE_SIZE, 0.1, cacheObserver: counter), counter),
+            new TestCase<long, long>("SLRU 0.2", new SLRUCache<long, long>(CACHE_SIZE, 0.2, cacheObserver: counter), counter),
+            new TestCase<long, long>("MSLRU 3", new MSLRUCache<long, long>(CACHE_SIZE, 3, cacheObserver: counter), counter),
+            new TestCase<long, long>("MSLRU 5", new MSLRUCache<long, long>(CACHE_SIZE, 5, cacheObserver: counter), counter),
+        };
+
+        // Run benchmarks in parallel
+        var tasks = simulations.Select(simulation => Task.Run(() =>
+        {
+            CacheBenchmarkUtilities.PlotBenchmarkEfficiency(
+                plotter, // Plotter to handle output series
+                "Scan", // Name of the simulation
+                caches, // Actual implementations to test. Each will lead to a serie.
+                x => x + 1, // Cache factory
+                simulation // Generator for input data
+            );
+        })).ToArray();
+
+        await Task.WhenAll(tasks);
+        
+        plotter.Save("../../../../Results");
+    }
+    
+    [Test]
+    [NonParallelizable]
+    public async Task P1_LFU_And_Real_LFU()
+    {
+        var plotter = new LiveCharts2Plotter();
+        var simulations = new [] {
+            // Generator keys stuck
+            new SwitchableGenerator<long>(100_000, false, new SparseLongGenerator(50_000), new SparseLongGenerator(UInt32.MaxValue))
+        };
+        
+        var counter = new CacheCounter();
+        
+        var caches = new [] {
+            new TestCase<long, long>("LRU", new LRUCache<long, long>(CACHE_SIZE, cacheObserver: counter), counter),
+            new TestCase<long, long>("SLRU 0.1", new SLRUCache<long, long>(CACHE_SIZE, 0.1, cacheObserver: counter), counter),
+            new TestCase<long, long>("SLRU 0.2", new SLRUCache<long, long>(CACHE_SIZE, 0.2, cacheObserver: counter), counter),
+            new TestCase<long, long>("MSLRU 3", new MSLRUCache<long, long>(CACHE_SIZE, 3, cacheObserver: counter), counter),
+            new TestCase<long, long>("MSLRU 5", new MSLRUCache<long, long>(CACHE_SIZE, 5, cacheObserver: counter), counter),
+        };
+
+        // Run benchmarks in parallel
+        var tasks = simulations.Select(simulation => Task.Run(() =>
+        {
+            CacheBenchmarkUtilities.PlotBenchmarkEfficiency(
+                plotter, // Plotter to handle output series
+                "Scan", // Name of the simulation
+                caches, // Actual implementations to test. Each will lead to a serie.
+                x => x + 1, // Cache factory
+                simulation // Generator for input data
+            );
+        })).ToArray();
+
+        await Task.WhenAll(tasks);
+        
+        plotter.Save("../../../../Results");
+    }
+    
+    [Test]
+    [NonParallelizable]
+    public async Task P1_LFU_Tweaks()
+    {
+        var plotter = new LiveCharts2Plotter();
+        var simulations = new [] {
+            // Generator keys stuck
+            new SwitchableGenerator<long>(100_000, false, new SparseLongGenerator(50_000), new SparseLongGenerator(UInt32.MaxValue))
+        };
+        
+        var counter = new CacheCounter();
+        
+        var caches = new [] {
+            // LFU, PLFU, LFURA, ...
+            new TestCase<long, long>("LRU", new LRUCache<long, long>(maximumKeyCount: CACHE_SIZE, cacheObserver: counter), counter),
             new TestCase<long, long>("SLRU 0.1", new SLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 0.1, cacheObserver: counter), counter),
             new TestCase<long, long>("SLRU 0.2", new SLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 0.2, cacheObserver: counter), counter),
             new TestCase<long, long>("MSLRU 3", new MSLRUCache<long, long>(maximumKeyCount: CACHE_SIZE, 3, cacheObserver: counter), counter),
@@ -117,5 +191,12 @@ public class CachingTests
         await Task.WhenAll(tasks);
         
         plotter.Save("../../../../Results");
+    }
+
+    [Test]
+    [NonParallelizable]
+    public async Task P1_Best_Cache_For_TFS()
+    {
+        
     }
 }

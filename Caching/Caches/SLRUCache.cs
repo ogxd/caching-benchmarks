@@ -9,63 +9,42 @@ using System.Runtime.InteropServices;
 
 namespace Caching;
 
-public class SLRUCache<TKey, TValue> : SLRUCache<TKey, TKey, TValue>
-{
-    public SLRUCache(
-        int maximumKeyCount,
-        double midPoint,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null) : base(
-            maximumKeyCount,
-            midPoint,
-            static item => item,
-            keyComparer,
-            cacheObserver)
-    { }
-}
-
 public record struct Index
 {
     public int index;
     public bool isProtected;
 }
 
-public class SLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
+/// <summary>
+/// Eviction Policy: Segmented Less Recently Used
+/// </summary>
+/// <typeparam name="TKey"></typeparam>
+/// <typeparam name="TValue"></typeparam>
+public class SLRUCache<TKey, TValue> : ICache<TKey, TValue>
 {
     private readonly ICacheObserver _cacheObserver;
 
-    private readonly Dictionary<TKey, Index> _perKeyMap;
-    private readonly IndexBasedLinkedList<Entry> _probationarySegment;
-    private readonly IndexBasedLinkedList<Entry> _protectedSegment;
-
-    private readonly Func<TItem, TKey> _keyFactory;
+    private readonly Dictionary<TKey, Index> _perKeyMap = new();
+    private readonly IndexBasedLinkedList<Entry> _probationarySegment = new();
+    private readonly IndexBasedLinkedList<Entry> _protectedSegment = new();
 
     private readonly double _midPoint;
-
     private int _maximumKeyCount;
 
     public SLRUCache(
         int maximumKeyCount,
         double midPoint,
-        Func<TItem, TKey> keyFactory,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null)
+        ICacheObserver cacheObserver)
     {
-        _keyFactory = keyFactory ?? throw new ArgumentNullException("keyFactory");
-        _perKeyMap = new Dictionary<TKey, Index>(keyComparer ?? EqualityComparer<TKey>.Default);
-        _protectedSegment = new IndexBasedLinkedList<Entry>();
-        _probationarySegment = new IndexBasedLinkedList<Entry>();
         _cacheObserver = cacheObserver;
         _maximumKeyCount = maximumKeyCount;
         _midPoint = midPoint;
     }
 
-    public int MaxSize { get => _maximumKeyCount; set => _maximumKeyCount = value; }
+    public int MaximumEntriesCount { get => _maximumKeyCount; set => _maximumKeyCount = value; }
 
-    public TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
+    public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
-        TKey key = _keyFactory(item);
-
         ref Index index = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
         _cacheObserver?.CountCacheCall();
 
@@ -78,7 +57,7 @@ public class SLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
                 RemoveFirst();
             }
 
-            value = factory(item);
+            value = factory(key);
 
             Entry entry = new(key, value);
             index.index = _probationarySegment.AddLast(entry);
@@ -131,19 +110,15 @@ public class SLRUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         _protectedSegment.Clear();
     }
 
-    internal struct Entry
+    private struct Entry
     {
         public TKey key;
         public TValue value;
-        public DateTime insertion;
-        public DateTime lastUsed;
 
         public Entry(TKey key, TValue value)
         {
             this.key = key;
             this.value = value;
-            insertion = DateTime.UtcNow;
-            lastUsed = DateTime.UtcNow;
         }
     }
 }

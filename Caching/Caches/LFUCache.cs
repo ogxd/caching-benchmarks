@@ -1,65 +1,36 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Diagnostics;
-using System.IO.Enumeration;
 using System.Runtime.InteropServices;
 
 namespace Caching;
 
-public class LFUCache<TKey, TValue> : LFUCache<TKey, TKey, TValue>
-{
-    public LFUCache(
-        int maximumKeyCount,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null) : base(
-            maximumKeyCount,
-            static item => item,
-            keyComparer,
-            cacheObserver,
-            expiration)
-    { }
-}
-
-public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
+public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
 {
     private readonly ICacheObserver _cacheObserver;
 
-    private readonly Dictionary<TKey, int> _perKeyMap;
-    private readonly IndexBasedLinkedList<Entry> _entriesByHits;
-    private readonly IndexBasedLinkedList<FreqCount> _freqsLog10;
+    private readonly Dictionary<TKey, int> _perKeyMap = new();
+    private readonly IndexBasedLinkedList<Entry> _entriesByHits= new();
+    private readonly IndexBasedLinkedList<FreqCount> _freqsLog10= new();
     
     // Only used for LFURA
     // Index of entry in entries by hits list, ordered by recency
-    internal readonly IndexBasedLinkedList<int> _entriesByRecency;
+    internal readonly IndexBasedLinkedList<int> _entriesByRecency = new();
     
-    private readonly Func<TItem, TKey> _keyFactory;
-
     private int _maximumKeyCount;
 
     public LFUCache(
         int maximumKeyCount,
-        Func<TItem, TKey> keyFactory,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null,
-        TimeSpan? expiration = null)
+        ICacheObserver cacheObserver)
     {
-        _keyFactory = keyFactory ?? throw new ArgumentNullException("keyFactory");
-        _perKeyMap = new Dictionary<TKey, int>(keyComparer ?? EqualityComparer<TKey>.Default);
-        _entriesByHits = new IndexBasedLinkedList<Entry>();
-        _freqsLog10 = new IndexBasedLinkedList<FreqCount>();
-        _entriesByRecency = new IndexBasedLinkedList<int>();
         _cacheObserver = cacheObserver;
         _maximumKeyCount = maximumKeyCount;
     }
 
-    public int MaxSize { get => _maximumKeyCount; set => _maximumKeyCount = value; }
+    public int MaximumEntriesCount { get => _maximumKeyCount; set => _maximumKeyCount = value; }
 
-    public virtual TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
+    public virtual TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
-        TKey key = _keyFactory(item);
-
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
         _cacheObserver?.CountCacheCall();
 
@@ -72,7 +43,7 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
 
         if (!exists)
         {
-            value = factory(item);
+            value = factory(key);
 
             Entry entry = new(key, value);
             entryIndex = _entriesByHits.AddFirst(entry);
@@ -365,123 +336,10 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         _entriesByRecency.Clear();
     }
 
-    private bool CheckHitsCount()
-    {
-        var hitsCount = _freqsLog10.ToArray();
-        for (int i = 0; i < hitsCount.Length - 1; i++)
-        {
-            // Check order
-            if (hitsCount[i].freqLog10 >= hitsCount[i + 1].freqLog10)
-                return false;
-
-            // Check pointer
-            if (hitsCount[i].firstEntryWithHitsIndex == hitsCount[i + 1].firstEntryWithHitsIndex)
-                return false;
-        }
-
-        return true;
-    }
-
-    private bool CheckThatFirstEntryIsFirst()
-    {
-        var hitsCount = _freqsLog10.ToArray();
-        for (int i = 0; i < hitsCount.Length; i++)
-        {
-            int firstEntryWithHitsIndex = hitsCount[i].firstEntryWithHitsIndex;
-
-            var entry = _entriesByHits[firstEntryWithHitsIndex];
-            int before = entry.before;
-
-            if (before != -1)
-            {
-                var entryBefore = _entriesByHits[before];
-
-                if (entry.value.freqIndex == entryBefore.value.freqIndex)
-                    return false;
-            }
-        }
-
-        return true;
-    }
-
-
-    private bool CheckOrder()
-    {
-        var entries = _entriesByHits.ToArray();
-
-        for (int i = 0; i < entries.Length - 1; i++)
-        {
-            if (_freqsLog10[entries[i].freqIndex].value.freqLog10 > _freqsLog10[entries[i + 1].freqIndex].value.freqLog10)
-                return false;
-
-            if (_freqsLog10[entries[i].freqIndex].value.refCount <= 0)
-                return false;
-        }
-
-        return true;
-    }
-
-    private bool CheatRemove()
-    {
-        var entries = _entriesByHits.ToArray();
-        var hitsCount = _freqsLog10.ToArray();
-
-        entries = entries.OrderBy(x => _freqsLog10[x.freqIndex].value.freqLog10).ToArray();
-
-        int i = 0;
-
-        while (_perKeyMap.Count > _maximumKeyCount)
-        {
-            Remove(entries[i].key);
-            i++;
-        }
-
-        return true;
-    }
-
-
-    private void CheckPromote()
-    {
-
-    }
-
-#pragma warning disable S125
-
-    //   A  B  C D E F G H I J K L M N O P Q
-    // 123 42 12 7 5 5 3 3 2 2 1 1 1 1 1 1 1
-
-    // Get O
-    //                        v--------|
-    //   A  B  C D E F G H I J K L M N O P Q
-    // 123 42 12 7 5 5 3 3 2 2 1 1 1 1 1 1 1
-
-    // Get R
-    //                                       v
-    //   A  B  C D E F G H I J O K L M N P Q R
-    // 123 42 12 7 5 5 3 3 2 2 2 1 1 1 1 1 1 1
-
-    // Get R
-    //                                       v
-    //   A  B  C D E F G H I J O K L M N P Q R
-    // 123 42 12 7 5 5 3 3 2 2 2 1 1 1 1 1 1 1
-    //   |  |  | |   |   |     |             |
-    // 123 42 12 7   5   3     2             1  
-    //   1  1  1 1   2   2     3             7
-
-    // Get N
-    //                                 |
-    //   A  B  C D E F G H I J O K L M N P Q R
-    // 123 42 12 7 5 5 3 3 2 2 2 1 1 1 1 1 1 1
-    //   |  |  | |   |   |     |             |
-    // 123 42 12 7   5   3     2             1  
-    //   1  1  1 1   2   2     3             7
-
-
-    internal struct Entry
+    private struct Entry
     {
         public TKey key;
         public TValue value;
-        public DateTime insertion;
         public long lastUsed;
         public int freqIndex;
         public int recency;
@@ -490,14 +348,13 @@ public class LFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
         {
             this.key = key;
             this.value = value;
-            insertion = DateTime.UtcNow;
             lastUsed = Stopwatch.GetTimestamp();
             freqIndex = -1;
             recency = 0;
         }
     }
 
-    internal record struct FreqCount
+    private record struct FreqCount
     {
         public int firstEntryWithHitsIndex;
         public int refCount;

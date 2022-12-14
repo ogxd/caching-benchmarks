@@ -43,7 +43,7 @@ public class CacheBenchmarkUtilities
             int size = 1000 * i * i;
 
             testCase.Cache.Clear();
-            testCase.Cache.MaxSize = size;
+            testCase.Cache.MaximumEntriesCount = size;
 
             generator.Reset();
 

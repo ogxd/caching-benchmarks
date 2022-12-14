@@ -1,7 +1,4 @@
-﻿#define PROGRESSIVE
-//#define PROMOTE_TO_BOTTOM
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -9,57 +6,43 @@ using System.Runtime.InteropServices;
 
 namespace Caching;
 
-public class ProbatoryLFUCache<TKey, TValue> : ProbatoryLFUCache<TKey, TKey, TValue>
-{
-    public ProbatoryLFUCache(
-        int maximumKeyCount,
-        double probatoryScaleFactor = 10,
-        IEqualityComparer<TKey> keyComparer = null,
-        ICacheObserver cacheObserver = null) : base(
-            maximumKeyCount,
-            static item => item,
-            probatoryScaleFactor,
-            keyComparer,
-            cacheObserver)
-    { }
-}
-
-public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
+/// <summary>
+/// Eviction Policy: Probatory Less Frequently Used
+/// </summary>
+/// <typeparam name="TKey"></typeparam>
+/// <typeparam name="TValue"></typeparam>
+public class ProbatoryLFUCache<TKey, TValue> : ICache<TKey, TValue>
 {
     private readonly ICacheObserver _cacheObserver;
-
-    private readonly Dictionary<TKey, int> _perKeyMap;
-    private readonly IndexBasedLinkedList<Entry> _hotEntries;
-    private readonly IndexBasedLinkedList<Entry> _probatoryEntries;
+    
+    private readonly Dictionary<TKey, int> _perKeyMap = new();
+    private readonly IndexBasedLinkedList<Entry> _hotEntries = new();
+    private readonly IndexBasedLinkedList<Entry> _probatoryEntries = new();
     private readonly SortedDictionary<int, FrequencyGroup> _frequencyGroups = new();
     
-    private readonly Func<TItem, TKey> _keyFactory;
-
+    private readonly double _probatoryScaleFactor;
+    private readonly bool _progressiveMove;
+    private readonly bool _promoteToBottom;
     private int _maximumEntriesCount;
-    private double _probatoryScaleFactor;
 
     public ProbatoryLFUCache(
         int maximumEntriesCount,
-        Func<TItem, TKey> keyFactory,
         double probatoryScaleFactor,
-        IEqualityComparer<TKey> keyComparer,
+        bool progressiveMove,
+        bool promoteToBottom,
         ICacheObserver cacheObserver)
     {
-        _keyFactory = keyFactory ?? throw new ArgumentNullException("keyFactory");
-        _perKeyMap = new Dictionary<TKey, int>(keyComparer ?? EqualityComparer<TKey>.Default);
-        _hotEntries = new IndexBasedLinkedList<Entry>();
-        _probatoryEntries = new IndexBasedLinkedList<Entry>();
         _cacheObserver = cacheObserver;
         _maximumEntriesCount = maximumEntriesCount;
         _probatoryScaleFactor = probatoryScaleFactor;
+        _progressiveMove = progressiveMove;
+        _promoteToBottom = promoteToBottom;
     }
 
-    public int MaxSize { get => _maximumEntriesCount; set => _maximumEntriesCount = value; }
+    public int MaximumEntriesCount { get => _maximumEntriesCount; set => _maximumEntriesCount = value; }
 
-    public virtual TValue GetOrCreate(TItem item, Func<TItem, TValue> factory)
+    public virtual TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
-        TKey key = _keyFactory(item);
-
         while (_hotEntries.Count > _maximumEntriesCount)
         {
             RemoveFirst();
@@ -89,7 +72,7 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             entryIndex = -_probatoryEntries.AddLast(entry) - 1;
             
             // Compute value but not store it as it is likely to be a entry that will never be requested again
-            return factory(item);
+            return factory(key);
         }
         
         // Case 2: Entry exists but it was probatory -> Move it from probatory entries to hot entries
@@ -104,7 +87,7 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             // Copy
             Entry entry = _probatoryEntries[probatoryIndex].value;
             
-            value = entry.value = factory(item);
+            value = entry.value = factory(key);
 
             // Remove from probatory entries
             _probatoryEntries.Remove(probatoryIndex);
@@ -112,10 +95,13 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             long currentTimestamp = Stopwatch.GetTimestamp();
             int frequency = GetFrequency(entry.lastUsed, currentTimestamp);
 
-#if PROMOTE_TO_BOTTOM
-            if (_frequencyGroups.Count > 0)
+            // If promoteToBottom, move probatory entry to bottom of hot entries, intead of placing it directly
+            // in the bucket it would have belonged. This could prevent entries accessed twice in a row from
+            // evicting "real" hot entries.
+            if (_promoteToBottom && _frequencyGroups.Count > 0)
+            {
                 frequency = _frequencyGroups.First().Key;
-#endif
+            }
             
             entry.frequency = frequency;
             entry.lastUsed = currentTimestamp;
@@ -146,7 +132,7 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
     internal int GetFrequency(long lastUsedTimestamp, long newTimestamp)
     {
         double instantFreq = 1d * Stopwatch.Frequency / (newTimestamp - lastUsedTimestamp);
-        return (int)Math.Round(Math.Log10(instantFreq * 1d));
+        return (int)Math.Ceiling(Math.Log10(instantFreq * 1d));
     }
 
     internal TValue GetValue(ref int entryIndex)
@@ -179,13 +165,15 @@ public class ProbatoryLFUCache<TItem, TKey, TValue> : ICache<TItem, TValue>
             frequencyGroup.firstEntryWithHitsIndex = entryNode.after;
         }
 
-#if PROGRESSIVE
-        // Progressive move (optional)
-        if (frequency > previousFrequency)
-            frequency += 1;
-        else
-            frequency -= 1;
-#endif
+        if (_progressiveMove)
+        {
+            // With this flag enabled entries move from a bucket to another without jumping directly to the target bucket
+            // This should help make the cache behaviour smoother
+            if (frequency > previousFrequency)
+                frequency ++;
+            else
+                frequency --;
+        }
         
         entryNode.value.frequency = frequency;
         
