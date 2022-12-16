@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using ScottPlot;
 
-namespace Caching.Tests;
+namespace Caching.Benchmarks;
 
 public class ScotPlottPlotter : IPlotter
 {

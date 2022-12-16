@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.Drawing;
@@ -12,7 +8,7 @@ using LiveChartsCore.SkiaSharpView.SKCharts;
 using LiveChartsCore.SkiaSharpView.VisualElements;
 using SkiaSharp;
 
-namespace Caching.Tests;
+namespace Caching.Benchmarks;
 
 public class LiveCharts2Plotter : IPlotter
 {

@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 
-namespace Caching;
+namespace Caching.Benchmarks;
 
 public class DataBasedGenerator : IGenerator<long>
 {

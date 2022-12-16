@@ -1,9 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 
-namespace Caching.Tests;
+namespace Caching.Benchmarks;
 
 public class CacheBenchmarkUtilities
 {

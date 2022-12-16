@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Caching;
+namespace Caching.Benchmarks;
 
 public class SparseLongGenerator : IGenerator<long>
 {

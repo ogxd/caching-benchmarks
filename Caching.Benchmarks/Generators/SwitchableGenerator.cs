@@ -1,4 +1,4 @@
-﻿namespace Caching;
+﻿namespace Caching.Benchmarks;
 
 public class SwitchableGenerator<T> : IGenerator<T>
 {

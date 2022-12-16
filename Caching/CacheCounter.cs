@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Caching.Tests;
+namespace Caching;
 
 public class CacheCounter : ICacheObserver
 {

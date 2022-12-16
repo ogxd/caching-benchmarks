@@ -8,7 +8,7 @@ using ScottPlot5::ScottPlot.Axis.StandardAxes;
 using ScottPlot5.ScottPlot;
 using ScottPlot5.ScottPlot.Style;
 
-namespace Caching.Tests;
+namespace Caching.Benchmarks;
 
 public class ScotPlott5Plotter : IPlotter
 {

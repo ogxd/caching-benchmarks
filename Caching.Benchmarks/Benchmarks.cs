@@ -2,12 +2,13 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Caching.Caches;
 
-namespace Caching.Tests;
+namespace Caching.Benchmarks;
 
-public class CachingTests
+public class Benchmarks
 {
     [Test]
     [NonParallelizable]
@@ -55,6 +56,7 @@ public class CachingTests
         
         var caches = new [] {
             new CacheBuilder<long, long, LRUCache<long, long>>().WithName("LRU"),
+            new CacheBuilder<long, long, ARCCache<long, long>>().WithName("ARC"),
             new CacheBuilder<long, long, SLRUCache<long, long>>().WithConfiguration(c => c.MidPoint = 0.1).WithName("SLRU 0.1"),
             new CacheBuilder<long, long, SLRUCache<long, long>>().WithConfiguration(c => c.MidPoint = 0.2).WithName("SLRU 0.2"),
             new CacheBuilder<long, long, MSLRUCache<long, long>>().WithConfiguration(c => c.SegmentsCount = 3).WithName("MSLRU 3"),
@@ -99,19 +101,22 @@ public class CachingTests
         simulations.Add(("Dataset Shared CL+VCC+VDC", new MultimodalGenerator<long>(new DataBasedGenerator("Datasets/case_cl.dat"), new DataBasedGenerator("Datasets/case_vcc.dat"), new DataBasedGenerator("Datasets/case_vdc.dat"))));
         
         var caches = new [] {
-            new CacheBuilder<long, long, LRUCache<long, long>>().WithName("LRU"),
-            new CacheBuilder<long, long, SLRUCache<long, long>>().WithConfiguration(c => c.MidPoint = 0.2).WithName("SLRU 0.2"),
-            new CacheBuilder<long, long, MSLRUCache<long, long>>().WithConfiguration(c => c.SegmentsCount = 5).WithName("MSLRU 5"),
+            // new CacheBuilder<long, long, LRUCache<long, long>>().WithName("LRU"),
+            // new CacheBuilder<long, long, SLRUCache<long, long>>().WithConfiguration(c => c.MidPoint = 0.2).WithName("SLRU 0.2"),
+            // new CacheBuilder<long, long, MSLRUCache<long, long>>().WithConfiguration(c => c.SegmentsCount = 5).WithName("MSLRU 5"),
             new CacheBuilder<long, long, LUCache<long, long>>().WithName("LU"),
-            new CacheBuilder<long, long, LUDACache<long, long>>().WithName("LUDA"),
-            new CacheBuilder<long, long, LUCacheOfficial<long, long>>().WithName("LFU Official"),
-            new CacheBuilder<long, long, LFUCacheNaive<long, long>>().WithName("LFU Naive"),
+            new CacheBuilder<long, long, LUCacheOfficial<long, long>>().WithName("LU Official"),
+            // new CacheBuilder<long, long, LUDACache<long, long>>().WithName("LUDA"),
+            // new CacheBuilder<long, long, LFUCacheNaive<long, long>>().WithName("LFU Naive"),
             new CacheBuilder<long, long, LFUCache<long, long>>().WithName("LFU"),
-            new CacheBuilder<long, long, LFURACache<long, long>>().WithName("LFURA"),
-            new CacheBuilder<long, long, PLFUCache<long, long>>().WithConfiguration(c => c.ProgressiveMove = true).WithConfiguration(c => c.PromoteToBottom = true).WithConfiguration(c => c.ProbatoryScaleFactor = 10d).WithName("PLFU Progressive"),
-            new CacheBuilder<long, long, PLFUCache<long, long>>().WithConfiguration(c => c.ProbatoryScaleFactor = 10d).WithName("PLFU"),
-            new CacheBuilder<long, long, PLFUCache<long, long>>().WithConfiguration(c => c.ProbatoryScaleFactor = 100d).WithName("PLFU Large"),
+            new CacheBuilder<long, long, ARCCache<long, long>>().WithName("ARC"),
+            new CacheBuilder<long, long, LIRSCacheAI<long, long>>().WithName("LIRS AI"),
             new CacheBuilder<long, long, LIRSCache<long, long>>().WithName("LIRS"),
+            // new CacheBuilder<long, long, LFURACache<long, long>>().WithName("LFURA"),
+            // new CacheBuilder<long, long, PLFUCache<long, long>>().WithConfiguration(c => c.ProgressiveMove = true).WithConfiguration(c => c.PromoteToBottom = true).WithConfiguration(c => c.ProbatoryScaleFactor = 10d).WithName("PLFU Progressive"),
+            // new CacheBuilder<long, long, PLFUCache<long, long>>().WithConfiguration(c => c.ProbatoryScaleFactor = 10d).WithName("PLFU"),
+            // new CacheBuilder<long, long, PLFUCache<long, long>>().WithConfiguration(c => c.ProbatoryScaleFactor = 100d).WithName("PLFU Large"),
+            // new CacheBuilder<long, long, LIRSCache<long, long>>().WithName("LIRS"),
         };
 
         // Run benchmarks in parallel

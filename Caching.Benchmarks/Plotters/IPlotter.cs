@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Caching.Tests;
+namespace Caching.Benchmarks;
 
 public interface IPlotter
 {
