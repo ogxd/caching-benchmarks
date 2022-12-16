@@ -13,14 +13,16 @@ namespace Caching;
 public class LUCache<TKey, TValue> : ICache<TKey, TValue>
 {
     private readonly Dictionary<TKey, int> _perKeyMap = new();
-    private readonly IndexBasedLinkedList<Entry> _entriesByHits = new();
-    private readonly IndexBasedLinkedList<HitsCount> _hitsCount = new();
+    private protected readonly IndexBasedLinkedList<Entry> _entriesByHits = new();
+    private protected readonly IndexBasedLinkedList<HitsCount> _hitsCount = new();
 
     public string Name { get; set; }
     
     public int MaximumEntriesCount { get; set; }
     
     public ICacheObserver Observer { get; set; }
+    
+    public bool InsertStartOfFrequencyBucket { get; set; }
     
     public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
@@ -38,40 +40,57 @@ public class LUCache<TKey, TValue> : ICache<TKey, TValue>
         {
             RemoveFirst();
         }
-            
+
+        value = Add(ref entryIndex, key, factory);
+
+        return value;
+    }
+
+    protected virtual TValue Add(ref int entryIndex, TKey key, Func<TKey, TValue> factory)
+    {
+        TValue value;
         value = factory(key);
         Observer?.CountCacheMiss();
 
         Entry entry = new(key, value);
-        
-        if (_hitsCount.Count == 0
-            || _hitsCount[_hitsCount.FirstIndex].Value.hits > 1)
+
+        if (ShouldCreateOneHitBucket)
         {
             entryIndex = _entriesByHits.AddFirst(entry);
-            
+
             HitsCount firstHit = new();
             firstHit.hits = 1;
             firstHit.refCount = 1;
             firstHit.firstEntryWithHitsIndex = entryIndex;
             _hitsCount.AddFirst(firstHit);
+
+            _entriesByHits[entryIndex].value.hitsCountIndex = _hitsCount.FirstIndex;
         }
         else
         {
-            if (_hitsCount.Count > 1)
-            {
-                entryIndex = _entriesByHits.AddBefore(entry, _hitsCount[_hitsCount[_hitsCount.FirstIndex].after].value.firstEntryWithHitsIndex);
-            }
-            else
-            {
-                entryIndex = _entriesByHits.AddFirst(entry);
-                _hitsCount[_hitsCount.FirstIndex].value.firstEntryWithHitsIndex = entryIndex;
-            }
-            _hitsCount[_hitsCount.FirstIndex].value.refCount++;
+            AddInExistingBuckets(ref entryIndex, entry);
         }
 
-        _entriesByHits[entryIndex].value.hitsCountIndex = _hitsCount.FirstIndex;
-
         return value;
+    }
+
+    protected virtual bool ShouldCreateOneHitBucket => _hitsCount.Count == 0 || _hitsCount[_hitsCount.FirstIndex].Value.hits > 1;
+
+    protected virtual void AddInExistingBuckets(ref int entryIndex, Entry entry)
+    {
+        ref var hitsNode = ref _hitsCount[_hitsCount.FirstIndex];
+        if (!InsertStartOfFrequencyBucket && _hitsCount.Count > 1)
+        {
+            entryIndex = _entriesByHits.AddBefore(entry, _hitsCount[hitsNode.after].value.firstEntryWithHitsIndex);
+        }
+        else
+        {
+            entryIndex = _entriesByHits.AddFirst(entry);
+            hitsNode.value.firstEntryWithHitsIndex = entryIndex;
+        }
+        
+        _entriesByHits[entryIndex].value.hitsCountIndex = _hitsCount.FirstIndex;
+        hitsNode.value.refCount++;
     }
 
     private TValue Promote(int entryIndex)
@@ -195,7 +214,7 @@ public class LUCache<TKey, TValue> : ICache<TKey, TValue>
         _entriesByHits.Clear();
     }
 
-    private struct Entry
+    protected struct Entry
     {
         public TKey key;
         public TValue value;
@@ -209,7 +228,7 @@ public class LUCache<TKey, TValue> : ICache<TKey, TValue>
         }
     }
 
-    private record struct HitsCount
+    protected record struct HitsCount
     {
         public int firstEntryWithHitsIndex;
         public int refCount;

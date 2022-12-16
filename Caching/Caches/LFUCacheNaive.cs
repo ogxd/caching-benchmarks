@@ -7,7 +7,7 @@ namespace Caching;
 public class LFUCacheNaive<TKey, TValue> : ICache<TKey, TValue>
 {
     private readonly Dictionary<TKey, int> _perKeyMap = new();
-    private readonly IndexBasedLinkedList<Entry> _entriesByHits = new();
+    private readonly IndexBasedLinkedList<Entry> _entriesByFrequency = new();
 
     public string Name { get; set; }
     
@@ -33,33 +33,35 @@ public class LFUCacheNaive<TKey, TValue> : ICache<TKey, TValue>
             Observer?.CountCacheMiss();
             
             Entry entry = new(key, value);
-            entryIndex = _entriesByHits.AddFirst(entry);
+            entryIndex = _entriesByFrequency.AddFirst(entry);
 
             return value;
         }
         else
         {
-            int after = _entriesByHits[entryIndex].After;
-            ref Entry entry = ref _entriesByHits[entryIndex].value;
+            int after = _entriesByFrequency[entryIndex].After;
+            ref Entry entry = ref _entriesByFrequency[entryIndex].value;
             double instantFreq = 1d / (DateTime.UtcNow - entry.lastUsed).TotalSeconds;
             // X% contrib
-            entry.frequency = 0.99d * entry.frequency + 0.01d * instantFreq;
+            entry.frequency = 0.5d * entry.frequency + 0.5d * instantFreq;
             entry.lastUsed = DateTime.UtcNow;
+
+            int freqLog2 = (int)Math.Log2(entry.frequency);
 
             int current = -1;
 
             // Way too slow!
-            while (after != -1 && entry.frequency > _entriesByHits[after].value.frequency)
+            while (after != -1 && freqLog2 >= _entriesByFrequency[after].value.frequency)
             {
                 current = after;
-                after = _entriesByHits[after].After;
+                after = _entriesByFrequency[after].after;
             }
 
             if (current != -1)
             {
                 var entryCopy = entry;
-                _entriesByHits.Remove(entryIndex);
-                _entriesByHits.AddAfter(entryCopy, current);
+                _entriesByFrequency.Remove(entryIndex);
+                _entriesByFrequency.AddAfter(entryCopy, current);
             }
             
             return entry.value;
@@ -68,15 +70,15 @@ public class LFUCacheNaive<TKey, TValue> : ICache<TKey, TValue>
 
     private void RemoveFirst()
     {
-        var entry = _entriesByHits[_entriesByHits.FirstIndex];
+        var entry = _entriesByFrequency[_entriesByFrequency.FirstIndex];
         _perKeyMap.Remove(entry.value.key);
-        _entriesByHits.Remove(_entriesByHits.FirstIndex);
+        _entriesByFrequency.Remove(_entriesByFrequency.FirstIndex);
     }
 
     public void Clear()
     {
         _perKeyMap.Clear();
-        _entriesByHits.Clear();
+        _entriesByFrequency.Clear();
     }
 
     internal struct Entry

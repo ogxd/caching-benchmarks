@@ -51,6 +51,7 @@ public class LiveCharts2Plotter : IPlotter
                 GeometryFill = new SolidColorPaint(color) { StrokeThickness = 0 },
                 Stroke = new SolidColorPaint(color) { StrokeThickness = 2 },
                 Fill = null,
+                LineSmoothness = 0,
             });
 
             i++;

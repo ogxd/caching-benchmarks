@@ -17,8 +17,13 @@ public class MSLRUCache<TKey, TValue> : ICache<TKey, TValue>
     private readonly Dictionary<TKey, (int segment, int index)> _perKeyMap = new();
     private IndexBasedLinkedList<Entry>[] _entries;
 
+    public MSLRUCache()
+    {
+        SegmentsCount = 3;
+    }
+
     private int _maximumKeyCount;
-    private int _segmentsCount = 3;
+    private int _segmentsCount;
 
     public string Name { get; set; }
     
@@ -59,9 +64,7 @@ public class MSLRUCache<TKey, TValue> : ICache<TKey, TValue>
         {
             value = factory(key);
 
-            TryRemoveSegmentLRU(0, out var e);
-            _perKeyMap.Remove(e.key);
-
+            // Add to first segment
             Entry entry = new(key, value);
             entryIndex.index = _entries[0].AddLast(entry);
             entryIndex.segment = 0;

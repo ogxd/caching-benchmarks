@@ -207,7 +207,7 @@ public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
         ref var entryNode = ref _entriesByHits[entryIndex];
         ref var freqNode = ref _freqsLog10[entryNode.value.freqIndex];
         
-        // If there is no next hitsCount node or next node is not hits + 1, we must create this node
+        // If there is no next hitsCount node or next node is not hits - 1, we must create this node
         if (freqNode.before == -1)
         {
             var oldEntryIndex = entryIndex;

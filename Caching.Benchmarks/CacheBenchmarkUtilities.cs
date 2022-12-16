@@ -12,22 +12,36 @@ public class CacheBenchmarkUtilities
     /// <param name="testCases">Test cases. One test case = one serie in the plot</param>
     /// <param name="factory">Cache factory to use on cache misses</param>
     /// <param name="generator">Generator to generate input data for the benchmark</param>
+    /// <param name="warmupIterations"></param>
+    /// <param name="benchmarkIterations"></param>
     /// <typeparam name="K"></typeparam>
     /// <typeparam name="V"></typeparam>
-    public static void PlotBenchmarkEfficiency<K, V>(IPlotter plotter, string plotName, IEnumerable<ICacheBuilder<K, V>> testCases, Func<K, V> factory, IGenerator<K> generator)
+    public static void PlotBenchmarkEfficiency<K, V>(
+        IPlotter plotter,
+        string plotName,
+        IEnumerable<ICacheBuilder<K, V>> testCases,
+        Func<K, V> factory,
+        IGenerator<K> generator,
+        int warmupIterations,
+        int benchmarkIterations)
     {
         var series = new List<Serie>();
         
         foreach (var testCase in testCases)
         {
-            var serie = BenchmarkEfficiency(testCase, factory, generator);
+            var serie = BenchmarkEfficiency(testCase, factory, generator, warmupIterations, benchmarkIterations);
             series.Add(serie);
         }
 
         plotter.Plot(plotName, "Max cache size", "Efficiency %", series);
     }
 
-    private static Serie BenchmarkEfficiency<K, V>(ICacheBuilder<K, V> testCase, Func<K, V> factory, IGenerator<K> generator) 
+    private static Serie BenchmarkEfficiency<K, V>(
+        ICacheBuilder<K, V> testCase,
+        Func<K, V> factory,
+        IGenerator<K> generator,
+        int warmupIterations,
+        int benchmarkIterations) 
     {
         var measurements = new List<(int size, int calls, int misses)>();
 
@@ -52,7 +66,7 @@ public class CacheBenchmarkUtilities
             generator.Reset();
 
             // Warmup
-            for (int j = 0; j < 100_000; j++)
+            for (int j = 0; j < warmupIterations; j++)
             {
                 K key = generator.Generate();
                 _ = cache.GetOrCreate(key, factory);
@@ -60,7 +74,7 @@ public class CacheBenchmarkUtilities
 
             observer.Reset();
 
-            for (int j = 0; j < 800_000; j++)
+            for (int j = 0; j < benchmarkIterations; j++)
             {
                 K key = generator.Generate();
                 _ = cache.GetOrCreate(key, factory);
