@@ -1,10 +1,4 @@
 extern alias ScottPlot5;
-
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using ScottPlot5::ScottPlot.Axis.StandardAxes;
 using ScottPlot5.ScottPlot;
 using ScottPlot5.ScottPlot.Style;
 

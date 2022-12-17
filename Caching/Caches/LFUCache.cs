@@ -222,13 +222,13 @@ public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
             // if (freqNode.after == -1)
             if (freqNode.before == -1)
             {
-                // entryIndex = _entriesByHits.AddLast(entry);
+                // entryIndex = _hotEntries.AddLast(entry);
                 entryIndex = _entriesByHits.AddFirst(entry);
             }
             else
             {
                 Debug.Assert(_freqsLog10[freqNode.before].value.freqLog10 < freqNode.value.freqLog10 + 1, "Ordering issue");
-                // entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[freqNode.after].value.firstEntryWithHitsIndex);
+                // entryIndex = _hotEntries.AddBefore(entry, _freqsLog10[freqNode.after].value.firstEntryWithHitsIndex);
                 entryIndex = _entriesByHits.AddBefore(entry, _freqsLog10[freqNode.before].value.firstEntryWithHitsIndex);
             }
 

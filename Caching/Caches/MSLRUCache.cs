@@ -63,6 +63,9 @@ public class MSLRUCache<TKey, TValue> : ICache<TKey, TValue>
         if (!exists)
         {
             value = factory(key);
+            
+            TryRemoveSegmentLRU(0, out var e);
+            _perKeyMap.Remove(e.key);
 
             // Add to first segment
             Entry entry = new(key, value);
@@ -118,11 +121,6 @@ public class MSLRUCache<TKey, TValue> : ICache<TKey, TValue>
             }
 
             Debug.Assert(_perKeyMap.Count <= _maximumKeyCount, $"{_perKeyMap.Count} <= {_maximumKeyCount}");
-
-            foreach (var entrySegment in _entries)
-            {
-                Debug.Assert(entrySegment.Count <= _maximumKeyCount / _segmentsCount);
-            }
 
             return value;
         }

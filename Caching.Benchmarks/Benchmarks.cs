@@ -50,6 +50,8 @@ public class Benchmarks
         caches.Add(new CacheBuilder<long, long, LUCache<long, long>>().WithConfiguration(c => c.InsertStartOfFrequencyBucket = true).WithName("LU Insert Bottom"));
         caches.Add(new CacheBuilder<long, long, LFUCache<long, long>>().WithName("LFU"));
         caches.Add(new CacheBuilder<long, long, LFURACache<long, long>>().WithName("LFURA"));
+        caches.Add(new CacheBuilder<long, long, PLUCache<long, long>>().WithName("PLU"));
+        caches.Add(new CacheBuilder<long, long, PLUDACache<long, long>>().WithName("PLUDA"));
 
         // Warmup for a long duration, to accentuate potential "stuck keys" effect when mode switches
         await RunAsync(simulations, caches, warmupIterations: 1_000_000, 200_000);
@@ -79,10 +81,13 @@ public class Benchmarks
         caches.Add(new CacheBuilder<long, long, MSLRUCache<long, long>>().WithConfiguration(c => c.SegmentsCount = 5).WithName("MSLRU"));
         caches.Add(new CacheBuilder<long, long, LUCache<long, long>>().WithName("LU"));
         caches.Add(new CacheBuilder<long, long, LUDACache<long, long>>().WithName("LUDA"));
+        caches.Add(new CacheBuilder<long, long, PLUCache<long, long>>().WithName("PLU"));
+        caches.Add(new CacheBuilder<long, long, PLUDACache<long, long>>().WithName("PLUDA"));
         caches.Add(new CacheBuilder<long, long, LFUCache<long, long>>().WithName("LFU"));
+        caches.Add(new CacheBuilder<long, long, PLFUCache<long, long>>().WithName("PLFU"));
         caches.Add(new CacheBuilder<long, long, LFURACache<long, long>>().WithName("LFURA"));
-        caches.Add(new CacheBuilder<long, long, LIRSCache<long, long>>().WithName("LFURA"));
-        caches.Add(new CacheBuilder<long, long, ARCCache<long, long>>().WithName("LFURA"));
+        caches.Add(new CacheBuilder<long, long, LIRSCache<long, long>>().WithName("LIRS"));
+        caches.Add(new CacheBuilder<long, long, ARCCache<long, long>>().WithName("ARC"));
 
         await RunAsync(simulations, caches);
     }
@@ -90,16 +95,18 @@ public class Benchmarks
     private static async Task RunAsync(
         IReadOnlyList<(string name, IGenerator<long> generator)> simulations,
         IReadOnlyList<ICacheBuilder<long, long>> caches,
-        int warmupIterations = 100_000,
+        int warmupIterations = 200_000,
         int benchmarkIterations = 800_000)
     {
         var plotter = new LiveCharts2Plotter();
+        var csvPlotter = new CsvPlotter();
+        var multiPlotter = new MultiPlotter(plotter, csvPlotter);
         
         // Run benchmarks in parallel
         var tasks = simulations.Select(simulation => Task.Run(() =>
         {
             CacheBenchmarkUtilities.PlotBenchmarkEfficiency(
-                plotter, // Plotter to handle output series
+                multiPlotter, // Plotter to handle output series
                 simulation.name, // Name of the simulation
                 caches, // Actual implementations to test. Each will lead to a serie.
                 x => x + 1, // Cache factory
@@ -112,5 +119,6 @@ public class Benchmarks
         await Task.WhenAll(tasks);
         
         plotter.Save("../../../../Results");
+        csvPlotter.Save("../../../../Results");
     }
 }
