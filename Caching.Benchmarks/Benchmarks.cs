@@ -52,6 +52,8 @@ public class Benchmarks
         caches.Add(new CacheBuilder<long, long, LFURACache<long, long>>().WithName("LFURA"));
         caches.Add(new CacheBuilder<long, long, PLUCache<long, long>>().WithName("PLU"));
         caches.Add(new CacheBuilder<long, long, PLUDACache<long, long>>().WithName("PLUDA"));
+        caches.Add(new CacheBuilder<long, long, PLFUCache<long, long>>().WithName("PLFU"));
+        caches.Add(new CacheBuilder<long, long, PLFURACache<long, long>>().WithName("PLFURA"));
 
         // Warmup for a long duration, to accentuate potential "stuck keys" effect when mode switches
         await RunAsync(simulations, caches, warmupIterations: 1_000_000, 200_000);
@@ -59,11 +61,13 @@ public class Benchmarks
     
     [Test]
     [NonParallelizable]
-    public async Task P1_All_Caches_All_Simutations()
+    public async Task All_Caches_All_Simutations()
     {
         var simulations = new List<(string name, IGenerator<long> generator)>();
         var caches = new List<ICacheBuilder<long, long>>();
         
+        simulations.Add(("Scan 1", new SwitchableGenerator<long>(100_000, false, new SparseLongGenerator(50_000), new SparseLongGenerator(UInt32.MaxValue))));
+        simulations.Add(("Scan 2", new MultimodalGenerator<long>(new SparseLongGenerator(50_000), new SparseLongGenerator(UInt32.MaxValue))));
         simulations.Add(("Sparse 500K", new SparseLongGenerator(500_000)));
         simulations.Add(("Gaussian σ = 200K", new GaussianLongGenerator(0, 200_000)));
         simulations.Add(("Gaussian σ = 100K", new GaussianLongGenerator(0, 100_000)));
@@ -76,18 +80,19 @@ public class Benchmarks
         simulations.Add(("Dataset VDC", new DataBasedGenerator("Datasets/case_vdc.dat")));
         simulations.Add(("Dataset Shared CL+VCC+VDC", new MultimodalGenerator<long>(new DataBasedGenerator("Datasets/case_cl.dat"), new DataBasedGenerator("Datasets/case_vcc.dat"), new DataBasedGenerator("Datasets/case_vdc.dat"))));
         
-        caches.Add(new CacheBuilder<long, long, LRUCache<long, long>>().WithName("LRU"));
-        caches.Add(new CacheBuilder<long, long, SLRUCache<long, long>>().WithConfiguration(c => c.MidPoint = 0.2).WithName("SLRU"));
-        caches.Add(new CacheBuilder<long, long, MSLRUCache<long, long>>().WithConfiguration(c => c.SegmentsCount = 5).WithName("MSLRU"));
+        // caches.Add(new CacheBuilder<long, long, LRUCache<long, long>>().WithName("LRU"));
+        // caches.Add(new CacheBuilder<long, long, SLRUCache<long, long>>().WithConfiguration(c => c.MidPoint = 0.2).WithName("SLRU"));
+        // caches.Add(new CacheBuilder<long, long, MSLRUCache<long, long>>().WithConfiguration(c => c.SegmentsCount = 5).WithName("MSLRU"));
         caches.Add(new CacheBuilder<long, long, LUCache<long, long>>().WithName("LU"));
         caches.Add(new CacheBuilder<long, long, LUDACache<long, long>>().WithName("LUDA"));
         caches.Add(new CacheBuilder<long, long, PLUCache<long, long>>().WithName("PLU"));
         caches.Add(new CacheBuilder<long, long, PLUDACache<long, long>>().WithName("PLUDA"));
         caches.Add(new CacheBuilder<long, long, LFUCache<long, long>>().WithName("LFU"));
-        caches.Add(new CacheBuilder<long, long, PLFUCache<long, long>>().WithName("PLFU"));
         caches.Add(new CacheBuilder<long, long, LFURACache<long, long>>().WithName("LFURA"));
-        caches.Add(new CacheBuilder<long, long, LIRSCache<long, long>>().WithName("LIRS"));
-        caches.Add(new CacheBuilder<long, long, ARCCache<long, long>>().WithName("ARC"));
+        caches.Add(new CacheBuilder<long, long, PLFUCache<long, long>>().WithName("PLFU"));
+        caches.Add(new CacheBuilder<long, long, PLFURACache<long, long>>().WithName("PLFURA"));
+        // caches.Add(new CacheBuilder<long, long, LIRSCache<long, long>>().WithName("LIRS"));
+        // caches.Add(new CacheBuilder<long, long, ARCCache<long, long>>().WithName("ARC"));
 
         await RunAsync(simulations, caches);
     }

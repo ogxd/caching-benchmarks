@@ -5,11 +5,16 @@ using System.Runtime.InteropServices;
 
 namespace Caching;
 
+/// <summary>
+/// Eviction Policy: Less Frequently Used
+/// </summary>
+/// <typeparam name="TKey"></typeparam>
+/// <typeparam name="TValue"></typeparam>
 public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
 {
-    private readonly Dictionary<TKey, int> _perKeyMap = new();
-    private readonly IndexBasedLinkedList<Entry> _entriesByHits= new();
-    private readonly IndexBasedLinkedList<FreqCount> _freqsLog10= new();
+    internal readonly Dictionary<TKey, int> _perKeyMap = new();
+    internal readonly IndexBasedLinkedList<Entry> _entriesByHits = new();
+    private readonly IndexBasedLinkedList<FreqCount> _freqsLog10 = new();
     
     // Only used for LFURA
     // Index of entry in entries by hits list, ordered by recency
@@ -339,7 +344,7 @@ public class LFUCache<TKey, TValue> : ICache<TKey, TValue>
         _entriesByRecency.Clear();
     }
 
-    private struct Entry
+    internal struct Entry
     {
         public TKey key;
         public TValue value;

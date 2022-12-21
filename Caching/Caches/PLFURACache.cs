@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 namespace Caching;
 
 /// <summary>
-/// Eviction Policy: Less Frequently Used with Recency Aging
+/// Eviction Policy: Probatory Less Frequently Used with Recency Aging
 /// </summary>
 /// <typeparam name="TKey"></typeparam>
 /// <typeparam name="TValue"></typeparam>
-public class LFURACache<TKey, TValue> : LFUCache<TKey, TValue>
+public class PLFURACache<TKey, TValue> : PLFUCache<TKey, TValue>
 {
     public override TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
@@ -17,12 +17,14 @@ public class LFURACache<TKey, TValue> : LFUCache<TKey, TValue>
         {
             // Retreive index on least recently refreshed item
             int lruIndex = _entriesByRecency[_entriesByRecency.FirstIndex].value;
-            ref int entryIndex = ref CollectionsMarshal.GetValueRefOrNullRef(_perKeyMap, _entriesByHits[lruIndex].value.key);
+            Entry lruEntry = _hotEntries[lruIndex].value;
+            ref int entryIndex = ref CollectionsMarshal.GetValueRefOrNullRef(_perKeyMap, lruEntry.key);
             
             // lruIndex == entryIndex but we need a ref to the value in the map to update it
             Debug.Assert(lruIndex == entryIndex);
-            
-            Unpromote(ref entryIndex);
+
+            // Unpromote that item frequency
+            Touch(ref entryIndex, lruEntry.frequency, lruEntry.frequency - 1);
         }
 
         return base.GetOrCreate(key, factory);

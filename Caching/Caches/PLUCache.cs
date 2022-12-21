@@ -25,6 +25,8 @@ public class PLUCache<TKey, TValue> : ICache<TKey, TValue>
     
     public bool InsertStartOfFrequencyBucket { get; set; }
     
+    public double ProbatoryScaleFactor { get; set; } = 5d;
+    
     public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
     {
         ref int entryIndex = ref CollectionsMarshal.GetValueRefOrAddDefault(_perKeyMap, key, out bool exists);
@@ -76,7 +78,7 @@ public class PLUCache<TKey, TValue> : ICache<TKey, TValue>
             return Promote(ref entryIndex);
         }
         
-        while (_probatoryEntries.Count >= MaximumEntriesCount * 5)
+        while (_probatoryEntries.Count >= ProbatoryScaleFactor * MaximumEntriesCount)
         {
             RemoveFirstProbatory();
         }
