@@ -4,7 +4,7 @@ using NUnit.Framework;
 namespace Caching.Tests;
 
 public class LinkedDictionaryTests
-{
+{   
     [Test]
     public void Test()
     {

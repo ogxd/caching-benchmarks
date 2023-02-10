@@ -1,3 +1,4 @@
+using System.Globalization;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.Drawing;
@@ -33,6 +34,11 @@ public class LiveCharts2Plotter : IPlotter
 
         cartesianChart.XAxes.First().Name = xlabel;
         cartesianChart.YAxes.First().Name = ylabel;
+        cartesianChart.XAxes.First().MinLimit = 0;
+        cartesianChart.XAxes.First().MinStep = series[0].Points[^1].x / (series[0].Points.Length - 1);
+        cartesianChart.XAxes.First().Labeler = x => Math.Round(x).ToString(CultureInfo.InvariantCulture);
+        cartesianChart.XAxes.First().ForceStepToMin = true;
+        cartesianChart.YAxes.First().MinLimit = 0;
         
         List<ISeries> transformedSeries = new();
         
@@ -40,17 +46,19 @@ public class LiveCharts2Plotter : IPlotter
         foreach (var serie in series)
         {
             var color = new SKColor(_visualDistinctColors[i].r, _visualDistinctColors[i].g, _visualDistinctColors[i].b);
-            //var color = ColorFromHSV(255d * i / series.Count, 1, 1 - 0.2 * (i % 2));
+
+            bool isBaseline = string.Equals("baseline", serie.Name, StringComparison.OrdinalIgnoreCase);
             
             transformedSeries.Add(new LineSeries<ObservablePoint, RectangleGeometry>
             {
                 Name = serie.Name,
+                IsVisibleAtLegend = !isBaseline,
                 Values = serie.Points.Select(x => new ObservablePoint(x.x, x.y)),
-                GeometrySize = 20 - 2 * i,
-                GeometryStroke = new SolidColorPaint(color) { StrokeThickness = 0 },
-                GeometryFill = new SolidColorPaint(color) { StrokeThickness = 0 },
-                Stroke = new SolidColorPaint(color) { StrokeThickness = 2 },
-                Fill = null,
+                GeometrySize = isBaseline ? 0 : 20 - 2 * i,
+                GeometryStroke = isBaseline ? _BaselineColor : new SolidColorPaint(color) { StrokeThickness = 0 },
+                GeometryFill = isBaseline ? _BaselineColor : new SolidColorPaint(color) { StrokeThickness = 0 },
+                Stroke = isBaseline ? _BaselineColor : new SolidColorPaint(color) { StrokeThickness = 2 },
+                Fill = isBaseline ? _BaselineColor : null,
                 LineSmoothness = 0,
             });
 
@@ -102,6 +110,13 @@ public class LiveCharts2Plotter : IPlotter
         };
     }
 
+    private static readonly Paint _BaselineColor = new LinearGradientPaint(
+        new SKColor(0, 0, 255, 15),
+        new SKColor(255, 0, 0, 15),
+        new SKPoint(0, 1),
+        new SKPoint(0, 0)) { StrokeThickness = 0 };
+    //private static readonly Paint _BaselineColor = new SolidColorPaint(0x22ff0000) { StrokeThickness = 0 };
+
     public (byte r, byte g, byte b)[] _visualDistinctColors = {
         (230, 25, 75),
         (60, 180, 75),
@@ -115,8 +130,9 @@ public class LiveCharts2Plotter : IPlotter
         (250, 190, 212),
         (0, 128, 128),
         (220, 190, 255),
-        (220, 190, 255),
         (170, 110, 40),
-        (255, 250, 200)
+        (255, 250, 200),
+        (130, 170, 44),
+        (70, 134, 160),
     };
 }

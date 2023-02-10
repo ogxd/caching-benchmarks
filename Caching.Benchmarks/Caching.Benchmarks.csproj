@@ -8,6 +8,7 @@
         <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
         <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
         <OutputType>Library</OutputType>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>
@@ -39,13 +40,38 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="Datasets\case_cl.dat">
+      <Folder Include="Datasets\Umass" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="Datasets\Equativ\all-2.dat">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
-      <None Update="Datasets\case_vcc.dat">
+      <None Update="Datasets\Equativ\cl-2.dat">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
-      <None Update="Datasets\case_vdc.dat">
+      <None Update="Datasets\Equativ\hbdr-2.dat">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Datasets\Equativ\hbrmab-2.dat">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Datasets\Equativ\vdas-2.dat">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Datasets\Umass\financial-1.dat">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Datasets\Umass\financial-2.dat">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Datasets\Umass\websearch-1.dat">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Datasets\Umass\websearch-2.dat">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Datasets\Umass\websearch-3.dat">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
     </ItemGroup>
