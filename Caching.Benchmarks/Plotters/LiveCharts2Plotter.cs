@@ -35,7 +35,7 @@ public class LiveCharts2Plotter : IPlotter
         cartesianChart.XAxes.First().Name = xlabel;
         cartesianChart.YAxes.First().Name = ylabel;
         cartesianChart.XAxes.First().MinLimit = 0;
-        cartesianChart.XAxes.First().MinStep = series[0].Points[^1].x / (series[0].Points.Length - 1);
+        cartesianChart.XAxes.First().MinStep = series[0].Points[^1].x / (series[0].Points.Length);
         cartesianChart.XAxes.First().Labeler = x => Math.Round(x).ToString(CultureInfo.InvariantCulture);
         cartesianChart.XAxes.First().ForceStepToMin = true;
         cartesianChart.YAxes.First().MinLimit = 0;
@@ -48,8 +48,8 @@ public class LiveCharts2Plotter : IPlotter
             var color = new SKColor(_visualDistinctColors[i].r, _visualDistinctColors[i].g, _visualDistinctColors[i].b);
 
             bool isBaseline = string.Equals("baseline", serie.Name, StringComparison.OrdinalIgnoreCase);
-            
-            transformedSeries.Add(new LineSeries<ObservablePoint, RectangleGeometry>
+
+            var lineSeries = new LineSeries<ObservablePoint, RectangleGeometry>
             {
                 Name = serie.Name,
                 IsVisibleAtLegend = !isBaseline,
@@ -60,7 +60,14 @@ public class LiveCharts2Plotter : IPlotter
                 Stroke = isBaseline ? _BaselineColor : new SolidColorPaint(color) { StrokeThickness = 2 },
                 Fill = isBaseline ? _BaselineColor : null,
                 LineSmoothness = 0,
-            });
+            };
+
+            if (isBaseline)
+            {
+                lineSeries.ZIndex = -10000;
+            }
+            
+            transformedSeries.Add(lineSeries);
 
             i++;
         }
@@ -111,8 +118,8 @@ public class LiveCharts2Plotter : IPlotter
     }
 
     private static readonly Paint _BaselineColor = new LinearGradientPaint(
-        new SKColor(0, 0, 255, 15),
-        new SKColor(255, 0, 0, 15),
+        new SKColor(240, 240, 255),
+        new SKColor(255, 240, 240),
         new SKPoint(0, 1),
         new SKPoint(0, 0)) { StrokeThickness = 0 };
     //private static readonly Paint _BaselineColor = new SolidColorPaint(0x22ff0000) { StrokeThickness = 0 };

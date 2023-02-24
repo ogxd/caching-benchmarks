@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace Caching.Benchmarks;
 
@@ -91,6 +92,9 @@ public class CacheBenchmarkUtilities
                 K key = generator.Generate();
                 _ = cache.GetOrCreate(key, factory);
             }
+            
+            Debug.Assert(benchmarkIterations == observer.CountCalls);
+            Debug.Assert(observer.CountMisses <= observer.CountCalls);
 
             measurements.Add((size, observer.CountCalls, observer.CountMisses));
         }

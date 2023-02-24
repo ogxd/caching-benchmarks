@@ -49,6 +49,7 @@ public class Benchmarks
         caches.Add(new CacheBuilder<long, long, PLUDACache<long, long>>().WithName("PLUDA"));
         caches.Add(new CacheBuilder<long, long, PLFUCache<long, long>>().WithName("PLFU"));
         caches.Add(new CacheBuilder<long, long, PLFURACache<long, long>>().WithName("PLFURA"));
+        caches.Add(new CacheBuilder<long, long, ARCCache<long, long>>().WithName("ARC"));
 
         // Warmup for a long duration, to accentuate potential "stuck keys" effect when mode switches
         await RunAsync(simulations, caches, 10, 1000..100000, warmupIterations: 1_000_000, 200_000);
@@ -90,7 +91,7 @@ public class Benchmarks
         caches.Add(new CacheBuilder<long, long, LIRSCache<long, long>>().WithName("LIRS"));
         caches.Add(new CacheBuilder<long, long, ARCCache<long, long>>().WithName("ARC"));
 
-        await RunAsync(simulations, caches, 10, 1000..100000);
+        await RunAsync(simulations, caches, 10, 1000..100000, 200_000, 800_000);
     }
     
     [Test]
@@ -117,10 +118,10 @@ public class Benchmarks
         caches.Add(new CacheBuilder<long, long, LFURACache<long, long>>().WithName("LFURA"));
         caches.Add(new CacheBuilder<long, long, PLFUCache<long, long>>().WithName("PLFU"));
         caches.Add(new CacheBuilder<long, long, PLFURACache<long, long>>().WithName("PLFURA"));
-        // caches.Add(new CacheBuilder<long, long, LIRSCache<long, long>>().WithName("LIRS"));
+        caches.Add(new CacheBuilder<long, long, LIRSCache<long, long>>().WithName("LIRS"));
         caches.Add(new CacheBuilder<long, long, ARCCache<long, long>>().WithName("ARC"));
 
-        await RunAsync(simulations, caches, 10, 1000..1000000);
+        await RunAsync(simulations, caches, 5, 500..100000, warmupIterations: 0, benchmarkIterations: 4700000);
     }
     
     [Test]

@@ -8,7 +8,7 @@ public class CsvPlotter : IPlotter
     {
         using (var sw = new StreamWriter(_csvData, leaveOpen: true))
         {
-            sw.WriteLine(name);
+            sw.Write(name);
             
             int i = 0;
             foreach (var serie in series)

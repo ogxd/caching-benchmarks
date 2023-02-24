@@ -37,6 +37,7 @@
 
     <ItemGroup>
         <Content Include="..\**\*.png" Link="Results\%(Filename)%(Extension)" />
+        <Content Include="..\**\*.csv" Link="Results\%(Filename)%(Extension)" />
     </ItemGroup>
 
     <ItemGroup>
